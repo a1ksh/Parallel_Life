@@ -986,5 +986,21 @@
   "Observed in the story": {
     "kk": "Оқиғада байқалған жайт",
     "ru": "Наблюдение из истории"
+  },
+  "Guide between timelines": {
+    "ru": "Проводник между ветками",
+    "kk": "Жолдар арасындағы бағыттаушы"
+  },
+  "In the first life you gained “{gain}”. In the second, the cost was “{cost}”.": {
+    "ru": "В первой ветке вы получили «{gain}». Цена второй — «{cost}».",
+    "kk": "Бірінші жолдағы ұтысыңыз — «{gain}». Екінші жолдың құны — «{cost}»."
+  },
+  "Given your constraint “{constraint}”, which compromise could you live with for a week?": {
+    "ru": "Вы указали ограничение «{constraint}». Какой из этих компромиссов вы готовы попробовать на одну неделю?",
+    "kk": "Сіз «{constraint}» деген шектеуді атадыңыз. Осы екі ымыраның қайсысын бір апта байқап көрер едіңіз?"
+  },
+  "Which compromise could you live with for a week?": {
+    "ru": "Какой из этих компромиссов вы готовы попробовать на одну неделю?",
+    "kk": "Осы екі ымыраның қайсысын бір апта байқап көрер едіңіз?"
   }
 }

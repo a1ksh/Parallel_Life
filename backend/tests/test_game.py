@@ -13,6 +13,8 @@ from app.services import ai_limits, story
 
 @pytest.fixture
 def game_api(tmp_path, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("PARALLEL_LIFE_AI_PROVIDER", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     url = f"sqlite:///{tmp_path / 'game.sqlite'}"
     token = str(uuid4()) + str(uuid4())

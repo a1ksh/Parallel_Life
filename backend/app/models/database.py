@@ -36,13 +36,26 @@ class AiUsageRecord(Base):
     calls: Mapped[int]
 
 
-def open_database(url: str | None = None):
-    url = url or os.environ.get("DATABASE_URL") or "sqlite:///./parallel-life.sqlite"
+def database_engine(url: str):
     if url.startswith(("postgres://", "postgresql://")):
         url = "postgresql+psycopg://" + url.split("://", 1)[1]
     options = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {"pool_pre_ping": True}
-    engine = create_engine(url, **options)
+    return create_engine(url, **options)
+
+
+def open_database(url: str | None = None):
+    destination = None if url else os.environ.get("PLAYER_DATABASE_URL")
+    source_url = url or os.environ.get("DATABASE_URL") or "sqlite:///./parallel-life.sqlite"
+    engine = database_engine(destination or source_url)
     Base.metadata.create_all(engine)
+    if destination and os.environ.get("MIGRATE_RENDER_SAVES") == "1":
+        from app.models.cutover import migrate_once
+
+        source = database_engine(source_url)
+        try:
+            migrate_once(source, engine)
+        finally:
+            source.dispose()
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 

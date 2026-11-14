@@ -361,7 +361,16 @@ function Compare({ game, open, ask }: { ask: AskSelf; game: Game; open: (view: V
   }
   return <section><StartHeader eyebrow={story(categoryInfo[game.scenario_id].title)} title={t("Compare timelines")}><p>{t("See the choices, benefits, and trade-offs you experienced in each life.")}</p></StartHeader>
     <PersonalContext profile={game.profile} />
-    {a && b && <Divergence game={game} first={a} second={b} />}
+    {a && b && <>
+      <Divergence game={game} first={a} second={b} />
+      <aside className="panel personal-context"><h2>{t("Guide between timelines")}</h2>
+        <p>{t("In the first life you gained “{gain}”. In the second, the cost was “{cost}”.", { gain: a.gain, cost: b.cost })}</p>
+        <p>{game.profile.constraint
+          ? t("Given your constraint “{constraint}”, which compromise could you live with for a week?", { constraint: game.profile.constraint })
+          : t("Which compromise could you live with for a week?")}</p>
+        <Button variant="outline" onClick={() => open("lab")}>{t("Reflect in Decision Lab")}</Button>
+      </aside>
+    </>}
     <div className="compare-grid">
       <div>{a && <><label>{t("First timeline")}<select value={a.id} onChange={(event) => {
         setLeft(event.target.value);
