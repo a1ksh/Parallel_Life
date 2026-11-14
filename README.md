@@ -50,7 +50,7 @@ The modern game uses the same guest token, database records, scenario and path I
 
 ## Deploy
 
-- **FastAPI and Supabase**. Deploy the repository Dockerfile with your Python-compatible host or use the Render Blueprint in `render.yaml`. The Render Blueprint provisions a free Postgres database and connects it to the web service. During setup, supply GEMINI_API_KEY as a Render secret for Gemini conversations. For a separate Supabase deployment, set DATABASE_URL to its session pooler URI with TLS enabled. Set the optional OpenAI variables in the service’s environment. The Docker image builds Next.js and serves it through FastAPI. `/api/status` reports API availability.
+- **FastAPI on Render with Neon Postgres**. Deploy the Dockerfile via the Render Blueprint. Set the server secrets `PLAYER_DATABASE_URL` (the Neon PostgreSQL connection string with TLS) and `GEMINI_API_KEY`. The Blueprint runs on Render's free web plan and uses the existing Neon database. Keep the same service URL so returning browsers retain their guest identity. The one-time transfer from the former Render database is complete; subsequent starts use Neon directly. `/api/status` reports API availability.
 - **Existing ChatGPT Sites URL**. The Sites deployment serves the same exported frontend from a Cloudflare Worker, with the equivalent REST API in `server/sites-api.js` and D1 persistence. The Site applies SQL under `drizzle/`. From the root, `npm run build` creates the Worker package input. Add optional OpenAI variables in Sites runtime settings. The previous Kazakh edition and its browser saves remain accessible at `/legacy/`.
 
 ## Code
