@@ -49,8 +49,7 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
   }
   try {
     const landing = await call('/');
-    assert.match(landing, /Дүйсенбіге дейін/);
-    assert.match(await call('/universes/'), /One life\./);
+    assert.match(landing, /One life\./);
     const chunk = landing.match(/src="(\/_next\/[^"]+\.js)"/)[1];
     assert.ok((await call(chunk)).length > 100);
     assert.match(await call('/legacy/'), /Басқа жолды таңдасаң/);
