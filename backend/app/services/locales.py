@@ -8,7 +8,11 @@ STORY_TEXT = {
 }
 
 
+LEGACY_TEXT = json.loads((Path(__file__).parents[1] / "scenarios" / "legacy-text.json").read_text(encoding="utf-8"))
+
+
 def authored(locale: str, text: str) -> str:
+    text = LEGACY_TEXT.get(text, text)
     return STORY_TEXT.get(locale, {}).get(text, text)
 
 

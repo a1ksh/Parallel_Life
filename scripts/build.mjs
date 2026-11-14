@@ -45,6 +45,7 @@ const source = async (file) => (await readFile(new URL(file, root), 'utf8')).rep
 const policy = JSON.parse(await readFile(new URL('backend/app/services/ai-policy.json', root), 'utf8'));
 const localePolicy = JSON.parse(await readFile(new URL('backend/app/services/locale-policy.json', root), 'utf8'));
 const kk = JSON.parse(await readFile(new URL('backend/app/scenarios/kk.json', root), 'utf8'));
+const legacyText = JSON.parse(await readFile(new URL('backend/app/scenarios/legacy-text.json', root), 'utf8'));
 const ru = JSON.parse(await readFile(new URL('backend/app/scenarios/ru.json', root), 'utf8'));
 const worker = `
 const catalog = ${JSON.stringify(catalog)};
@@ -53,6 +54,7 @@ const policy = ${JSON.stringify(policy)};
 const localePolicy = ${JSON.stringify(localePolicy)};
 const kk = ${JSON.stringify(kk)};
 const ru = ${JSON.stringify(ru)};
+const legacyText = ${JSON.stringify(legacyText)};
 ${await source('server/ai.js')}
 ${await source('server/sites-api.js')}
 const assets = new Map(${JSON.stringify(assets)});

@@ -224,3 +224,11 @@ meter, progress { width: 100%; accent-color: var(--primary); }
 .matrix table { border-collapse: collapse; font-size: .86rem; width: 100%; }
 .matrix th, .matrix td { padding: 9px; text-align: start; vertical-align: top; border-bottom: 1px solid var(--line); min-width: 8rem; }
 .lab-layout > div { min-width: 0; }
+.life-priorities > p { margin: .4rem 0 .8rem; }
+.priority-sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .6rem 1.3rem; }
+.priority-sliders label span { display: flex; justify-content: space-between; }
+.priority-sliders output { color: var(--primary); font-variant-numeric: tabular-nums; }
+.priority-sliders input[type=range] { accent-color: var(--primary); padding: 0; height: 1.55rem; border: 0; background: transparent; }
+.priority-tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1rem 0; }
+.priority-tabs button { border: 1px solid var(--line); border-radius: 6px; color: inherit; background: transparent; padding: .45rem .65rem; font: inherit; font-size: .85rem; }
+.priority-tabs button[aria-pressed=true] { border-color: var(--primary); color: var(--primary); background: #262136; }

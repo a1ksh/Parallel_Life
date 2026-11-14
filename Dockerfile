@@ -3,7 +3,7 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ .
-COPY backend/app/scenarios/kk.json backend/app/scenarios/ru.json /app/backend/app/scenarios/
+COPY backend/app/scenarios/kk.json backend/app/scenarios/ru.json backend/app/scenarios/legacy-text.json /app/backend/app/scenarios/
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

@@ -17,7 +17,8 @@ export function RealityBridge({ game, scenario, save, open }: {
   const { t, story, locale } = useTranslation();
   const busy = useGame((state) => state.busy);
   const { passport, experiment } = game;
-  const { plan, reflection, pass_interest } = experiment;
+  const { plan, reflection } = experiment;
+  const pass_interest = experiment.pass_offer === "KZT_1490" ? experiment.pass_interest : null;
   const [action, setAction] = useState(plan?.action ?? passport?.next_step ?? "");
   const [deadline, setDeadline] = useState(plan?.deadline ?? nextWeek);
   const [signal, setSignal] = useState(plan?.signal ?? "");
@@ -34,10 +35,10 @@ export function RealityBridge({ game, scenario, save, open }: {
     ["priority", t("How did your priorities change or stay the same?")],
   ] as const;
   if (showPass) return <section className="narrow panel form-grid">
-    <h1>Decision Pass</h1><p>{t("Would you pay US$5.99 once for one full scenario and a Decision Passport? The demo stays free.")}</p>
+    <h1>Decision Pass</h1><p>{t("Would you pay ₸1,490 once for one full scenario and a Decision Passport? The demo stays free.")}</p>
     <p>{t("This is an interest survey. We only save your answer in this universe. No purchase, subscription or charge.")}</p>
-    <div className="actions"><Button disabled={busy} aria-pressed={pass_interest === "interested"} onClick={() => void save({ pass_interest: "interested" })}>{t("Interested at this price")}</Button>
-      <Button variant="outline" disabled={busy} aria-pressed={pass_interest === "declined"} onClick={() => void save({ pass_interest: "declined" })}>{t("I would pass")}</Button></div>
+    <div className="actions"><Button disabled={busy} aria-pressed={pass_interest === "interested"} onClick={() => void save({ pass_interest: "interested", pass_offer: "KZT_1490" })}>{t("Interested at this price")}</Button>
+      <Button variant="outline" disabled={busy} aria-pressed={pass_interest === "declined"} onClick={() => void save({ pass_interest: "declined", pass_offer: "KZT_1490" })}>{t("I would pass")}</Button></div>
     {pass_interest && <p role="status">{pass_interest === "interested" ? t("Your response: interested.") : t("Your response: would pass.")}</p>}
     <Button variant="ghost" onClick={() => setShowPass(false)}>{t("Back to Reality Bridge")}</Button></section>;
   const constraint = passport.constraint || game.profile.constraint;

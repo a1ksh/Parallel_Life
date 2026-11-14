@@ -8,7 +8,7 @@ The Life Map shows named decision checkpoints and restores them into independent
 
 Quick Start supplies a fictional dilemma. A custom avatar can bring a personal dilemma, a practical constraint and two or three values. Complete two timelines and open Compare to find their first differing choice. In Life Map or Compare, open the other-self conversation and select a recorded decision. Each timeline keeps its own dialogue. With live AI disabled, the game answers using its journal.
 
-Decision Lab connects the chosen values to recorded choices and their fictional world scores. Save a Decision Passport, then set up an optional experiment in Reality Bridge. Choose one action, a check-in date and a sign you can observe. On your return, record the outcome, what surprised you and whether your priorities changed. The Decision Pass survey records interest in a proposed US$5.99 offer.
+Decision Lab connects the chosen values to recorded choices and their fictional world scores. Save a Decision Passport, then set up an optional experiment in Reality Bridge. Choose one action, a check-in date and a sign you can observe. On your return, record the outcome, what surprised you and whether your priorities changed. The Decision Pass survey records interest in a proposed ₸1,490 offer.
 
 The [three-minute demo and pilot guide in Russian](DEMO-PILOT-RU.md) includes facilitator prompts and blank measurement fields for ten interviews and fifteen playtests.
 

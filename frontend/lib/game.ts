@@ -5,9 +5,13 @@ export const categories = ["career", "education", "relationships"] as const;
 export type Category = typeof categories[number];
 export const avatars = ["dawn", "orbit", "night", "ember"] as const;
 export type ValueId = "career" | "finances" | "freedom" | "knowledge" | "wellbeing" | "social";
+export type LifeDimension = "skills" | "health" | "relationships" | "work" | "fulfillment" | "study" | "happiness";
+export type LifePriorities = Record<LifeDimension, number>;
 export type Profile = {
   id: string; name: string; age: number; avatar: typeof avatars[number]; situation: string;
   goal: string; category: Category; traits: string; values: string; background: string;
+  life_priorities?: LifePriorities | null;
+  gender?: "" | "woman" | "man" | "nonbinary"; personal_context?: string;
   dilemma?: string; constraint?: string; selected_values?: ValueId[];
 };
 export type NPC = {
@@ -26,7 +30,7 @@ export type Scene = {
   reaction?: string | null; side_event?: string | null;
   authored_title?: string; authored_body?: string; has_personalization?: boolean;
   variants?: Partial<Record<Locale, Narration>>;
-  choices: { id: string; label: string; focus: string[] }[];
+  choices: { id: string; label: string; focus: string[]; effects?: Record<string, number> }[];
 };
 export type Narration = { title: string; narrative: string; dialogue: string; reaction?: string; side_event?: string };
 export type Message = { role: "player" | "npc"; text: string; locale?: Locale; mode?: "scripted" | "live" };
@@ -41,12 +45,14 @@ export type Ending = {
 };
 export type Passport = {
   priorities: string[]; uncertainty: string; next_step: string; timelines: Ending[];
+  gender?: "" | "woman" | "man" | "nonbinary"; personal_context?: string;
   dilemma?: string; constraint?: string; selected_values?: ValueId[]; questions?: string[]; experiment_title?: string;
 };
 export type Experiment = {
   checked: number[]; status: "active" | "completed" | "skipped";
   plan?: { action: string; deadline: string; signal: string } | null;
   reflection?: { outcome: string; surprise: string; priority: string } | null;
+  pass_offer?: "KZT_1490" | null;
   pass_interest?: "interested" | "declined" | null;
 };
 export type Game = {

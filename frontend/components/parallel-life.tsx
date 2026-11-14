@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RealityBridge } from "@/components/reality-bridge";
+import { PrioritySliders, PriorityComparison, readLifePriorities } from "@/components/life-priorities";
+import { ChoiceEffects, ChoiceResult, decisionQuestions, pathTradeoffs } from "./choice-guide";
+import { CountryContext } from "./country-context";
+import "./choice-guide.css";
 import { LifeMap } from "@/components/life-map";
 import {
   activeKey, ApiError, api, avatars, categories, perform, useGame,
@@ -20,9 +24,9 @@ import {
 } from "@/lib/game";
 
 const categoryInfo = {
-  career: { title: "Career & Business", detail: "Ambition, independence, and the cost of starting over.", icon: BriefcaseBusiness, age: 29 },
-  education: { title: "Education & Growth", detail: "Three ways to learn, each asking something different of you.", icon: GraduationCap, age: 27 },
-  relationships: { title: "Relationships", detail: "Explore what it takes to make room for two different futures.", icon: Heart, age: 30 },
+  career: { title: "Career & Business", icon: BriefcaseBusiness, age: 29 },
+  education: { title: "Education & Growth", icon: GraduationCap, age: 27 },
+  relationships: { title: "Relationships", icon: Heart, age: 30 },
 } as const;
 const metrics = {
   career: "Career", finances: "Finances", freedom: "Freedom", knowledge: "Knowledge",
@@ -35,12 +39,21 @@ const fictional = {
   relationships: ["Should we move together or keep separate homes?", "I need to stay close to my family."],
 } as const;
 
+const genderLabels = { woman: "Woman", man: "Man", nonbinary: "Nonbinary" } as const;
+const sampleCircumstances = {
+  career: "I share a flat in Almaty and split the rent with a friend.",
+  education: "I live in Astana and help my younger brother after classes.",
+  relationships: "I live in Karaganda and visit my family every Sunday.",
+} as const;
+
 function PersonalContext({ profile }: { profile: Profile }) {
   const { t } = useTranslation();
-  if (!profile.dilemma) return null;
-  return <div className="panel personal-context"><h3>{t("Your dilemma")}</h3><p>{profile.dilemma}</p>
+  if (!profile.dilemma && !profile.gender && !profile.personal_context) return null;
+  return <div className="panel personal-context">{profile.dilemma && <><h3>{t("Your dilemma")}</h3><p>{profile.dilemma}</p>
     <p><strong>{t("Important constraint")}</strong> · {profile.constraint}</p>
-    <p><strong>{t("Values")}</strong> · {profile.selected_values?.map(id => t(metrics[id])).join(", ")}</p></div>;
+    <p><strong>{t("Values")}</strong> · {profile.selected_values?.map(id => t(metrics[id])).join(", ")}</p></>}
+    {profile.gender && <p>{t("Gender (optional)")} · {t(genderLabels[profile.gender])}</p>}
+    {profile.personal_context && <p><strong>{t("My circumstances")}</strong> · {profile.personal_context}</p>}</div>;
 }
 
 const avatarGlyph = { dawn: "☀", orbit: "◉", night: "☾", ember: "✦" };
@@ -63,11 +76,11 @@ function StartHeader({ eyebrow, title, children }: { eyebrow: string; title: str
 function ScenarioCards({ select, continuing }: { select: (category: Category) => void; continuing?: Category }) {
   const { t, story } = useTranslation();
   return <div className="scenario-grid">{categories.map((id) => {
-    const { title, detail, icon: Icon } = categoryInfo[id];
+    const { title, icon: Icon } = categoryInfo[id];
     return <button type="button" key={id} className={`scenario-card ${id}`} onClick={() => select(id)}>
       <SceneArt category={id} />
       <div className="scenario-top"><span className="scenario-icon"><Icon size={21} /></span><ArrowDownRight size={20} /></div>
-      <div><h3>{story(title)}</h3><p>{t(detail)}</p><span className="scenario-action">{continuing === id ? t("Continue") : t("Start")} <span aria-hidden="true">→</span></span></div>
+      <div><h3>{story(title)}</h3><p>{t(decisionQuestions[id])}</p><span className="scenario-action">{continuing === id ? t("Continue") : t("Start")} <span aria-hidden="true">→</span></span></div>
     </button>;
   })}</div>;
 }
@@ -79,12 +92,13 @@ function Home({ start, continuing, resume }: { start: (category?: Category) => v
       <div className="hero-image" />
       <div className="hero-content">
         <p className="eyebrow"><span /> {t("Interactive fiction")}</p>
-        <h1>{t("One life.")}<br /><em>{t("Infinite possibilities.")}</em></h1>
-        <p>{t("Step into the lives that could follow one decision. Play each path, meet the people in it, and see what matters to you.")}</p>
-        <Button onClick={() => start()}>{t("Start Your Journey")} <ArrowRight size={17} /></Button>
+        <h1>{t("What if you")}<br /><em>{t("chose differently?")}</em></h1>
+        <p>{t("Play through three fictional years of work, study, or relationships. Make a choice, see what changes, then try another path.")}</p>
+        <div className="actions">{continuing && <Button onClick={resume}>{t("Continue")} <ArrowRight size={17} /></Button>}
+          <a className={`button ${continuing ? "button-outline" : "button-default"}`} href="#story-catalog">{t("Choose a story")} <ArrowDownRight size={17} /></a></div>
       </div>
     </section>
-    <section className="catalog"><div className="section-heading"><h2>{t("Choose a crossroads")}</h2><span>{t("Three playable stories")}</span></div>
+    <section id="story-catalog" className="catalog"><div className="section-heading"><h2>{t("Which decision would you like to try?")}</h2><span>{t("Three playable stories")}</span></div>
       <ScenarioCards continuing={continuing} select={(category) => category === continuing ? resume() : start(category)} />
     </section>
   </>;
@@ -96,8 +110,10 @@ function Onboarding({ category, onSave }: { category: Category; onSave: (profile
   const [invalid, setInvalid] = useState<"age" | "values" | "required" | null>(null);
   const busy = useGame((state) => state.busy);
   const [selected, setSelected] = useState<ValueId[]>([]);
-  function quickStart() {
-    onSave({ name: "Avery", age: categoryInfo[category].age, avatar: "orbit",
+  function quickStart(form: HTMLFormElement | null) {
+    const data = form ? new FormData(form) : undefined;
+    onSave({ life_priorities: readLifePriorities(data), gender: (data?.get("gender") || "") as Profile["gender"],
+      personal_context: String(data?.get("personal_context") || "").trim() || t(sampleCircumstances[category]), name: t("Aruzhan"), age: categoryInfo[category].age, avatar: "orbit",
       situation: "At a turning point", goal: "Explore the trade-offs before deciding", category,
       traits: "", values: "", background: "", dilemma: t(fictional[category][0]), constraint: t(fictional[category][1]),
       selected_values: category === "career" ? ["finances", "freedom"] : category === "education" ? ["knowledge", "finances"] : ["social", "freedom"] });
@@ -120,7 +136,7 @@ function Onboarding({ category, onSave }: { category: Category; onSave: (profile
       return;
     }
     setInvalid(null);
-    onSave({ name: field("name"), age: Number(field("age")), avatar, situation: field("situation") || "At a turning point",
+    onSave({ gender: field("gender") as Profile["gender"], personal_context: field("personal_context"), life_priorities: readLifePriorities(data), name: field("name"), age: Number(field("age")), avatar, situation: field("situation") || "At a turning point",
       goal: field("goal") || "Explore the trade-offs before deciding", dilemma: field("dilemma"), constraint: field("constraint"), selected_values: selected, category: field("category") as Category, traits: field("traits"),
       values: selected.map(id => metrics[id]).join(", "), background: field("background") });
   }
@@ -140,10 +156,17 @@ function Onboarding({ category, onSave }: { category: Category; onSave: (profile
       <fieldset><legend>{t("Choose two or three values.")}</legend><div className="priority-list">{valueIds.map(id =>
         <label key={id}><input type="checkbox" name="personal-value" checked={selected.includes(id)}
           disabled={selected.length === 3 && !selected.includes(id)} onChange={e => setSelected(e.target.checked ? [...selected, id] : selected.filter(item => item !== id))} /> {t(metrics[id])}</label>)}</div></fieldset>
+      <PrioritySliders />
       <label>{t("Preferred story")}<select name="category" defaultValue={category}>{categories.map((id) =>
         <option value={id} key={id}>{story(categoryInfo[id].title)}</option>)}</select></label>
       <details><summary>{t("Optional character details")}</summary>
         <div className="form-grid optional-fields">
+          <label>{t("Gender (optional)")}<select name="gender" defaultValue="">
+            <option value="">{t("Prefer not to say")}</option>
+            {Object.entries(genderLabels).map(([id, label]) => <option key={id} value={id}>{t(label)}</option>)}
+          </select></label>
+          <label>{t("My circumstances")}<textarea name="personal_context" maxLength={300} rows={2}
+            placeholder={t("For example, I live in Taraz and can travel only on weekends.")} /></label>
           <label>{t("Personality traits")}<input name="traits" maxLength={180} /></label>
           <label>{t("Current work or study situation")}<input name="situation" maxLength={120} /></label>
           <label>{t("Main personal goal")}<input name="goal" maxLength={120} /></label>
@@ -151,7 +174,7 @@ function Onboarding({ category, onSave }: { category: Category; onSave: (profile
         </div>
       </details>
       <div className="actions"><Button type="submit" disabled={busy}>{t("Save avatar")} <ArrowRight size={16} /></Button>
-        <Button variant="outline" disabled={busy} onClick={quickStart}>{t("Quick Start")}</Button></div>
+        <Button variant="outline" disabled={busy} onClick={e => quickStart(e.currentTarget.form)}>{t("Quick Start")}</Button></div>
     </form>
   </section>;
 }
@@ -173,9 +196,9 @@ function JourneyNav({ game, view, open }: { game: Game; view: View; open: (view:
 function PathButtons({ scenario, start, explored = [] }: { scenario: Scenario; start: (id: string) => void; explored?: string[] }) {
   const { t } = useTranslation();
   const busy = useGame((state) => state.busy);
-  return <div className="choice-list">{scenario.paths.map((path) =>
+  return <div className="choice-list decision-paths">{scenario.paths.map((path) =>
     <Button key={path.id} variant="outline" className="choice" disabled={busy} onClick={() => start(path.id)}>
-      <span><strong>{path.title}</strong><small>{path.description}</small></span>
+      <span><strong>{path.short}</strong><small>{pathTradeoffs[path.id] ? t(pathTradeoffs[path.id]) : path.description}</small></span>
       {explored.includes(path.id) ? <span className="small-label">{t("Explored")}</span> : <ArrowRight size={17} />}
     </Button>)}</div>;
 }
@@ -211,7 +234,9 @@ function Chat({ game, branch, scenario, send }: {
     <p className="npc-role">{npc.role} · {npc.mood}</p>
     <details className="npc-bio"><summary>{t("About {name}", { name: npc.name })}</summary><p>{npc.background}</p><p>{npc.goal}</p></details>
     <p className="small-label">{ai ? t("AI conversation available") : t("Scripted demo conversation")} · {t("Trust")} {state?.trust ?? 50}</p>
-    {ai && <p className="npc-role">{t("This scene and relevant messages from this timeline may be sent to the AI provider to write the character’s reply.")}</p>}
+    {ai && <p className="npc-role">{t("For a live reply, the AI provider receives this scene, relevant messages and any gender or circumstances you entered.")}</p>}
+    {game.profile.personal_context && <Button variant="outline" disabled={busy || limited || sending}
+      onClick={() => setText(t("How does my situation fit this decision?"))}>{t("How does my situation fit this decision?")}</Button>}
     <div className="messages" role="log" aria-live="polite" aria-label={t("Conversation")} tabIndex={0}
       ref={(node) => { if (node) node.scrollTop = node.scrollHeight; }}>
       {messages.length ? messages.map((message, i) => <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -249,42 +274,45 @@ function Story({ game, scenario, start, choose, send, open, narrate }: {
   game: Game; scenario: Scenario; start: (id: string) => void; choose: (id: string, index: number) => void;
   send: (npc: string, text: string) => Promise<boolean>; open: (view: View) => void; narrate: () => void;
 }) {
-  const { t, story } = useTranslation();
+  const { t } = useTranslation();
   const { busy, ai } = useGame();
   const branch = game.branches.find((item) => item.id === game.active_id);
   const scene = branch?.scene;
   const ending = game.endings.find((item) => item.id === branch?.id);
   if (ending) return <section className="story-page">
     <StartHeader eyebrow={t("Year 3 · Timeline complete")} title={t("One possible life")} />
-    <Outcome ending={ending} />
+    <ChoiceResult event={ending.events.at(-1)} scenario={scenario} />
+    <Outcome ending={{ ...ending, aftermath: null }} />
     <div className="actions"><Button onClick={() => open("compare")}>{t("Compare timelines")}</Button>
       <Button variant="outline" onClick={() => open("map")}>{t("Explore another life")} <GitFork size={16} /></Button>
       <Button variant="ghost" onClick={() => open("lab")}>{t("Open Decision Lab")}</Button></div>
   </section>;
-  if (!branch || !scene) return <section className="story-page">
-    <StartHeader eyebrow={scenario.setting} title={scenario.title}><p>{scenario.intro}</p></StartHeader>
-    <PersonalContext profile={game.profile} />
-    <p>{t("In this story you can explore {paths}. Which path would test your priorities?", { paths: scenario.paths.map(path => path.short).join(" / ") })}</p>
-    <p className="avatar-context"><span aria-hidden="true">{avatarGlyph[game.profile.avatar]} </span>{t("Playing as {name}, {age} · Goal: {goal}", { name: game.profile.name, age: game.profile.age, goal: story(game.profile.goal) })}</p>
-    <p className="small-label mb-2">{t("The crossroads")}</p>
+  if (!branch || !scene) return <section className="story-page decision-start">
+    <StartHeader eyebrow={scenario.title} title={t(decisionQuestions[scenario.id])}><p>{scenario.intro}</p></StartHeader>
+    <div className="decision-heading"><h2>{t("Choose your first path")}</h2><p>{t("You can return to this decision and play another path.")}</p></div>
     <PathButtons scenario={scenario} start={start} />
+    <PersonalContext profile={game.profile} />
+    <CountryContext category={scenario.id} />
   </section>;
   const path = scenario.paths.find((item) => item.id === branch.path_id);
   return <section className="story-layout">
     <div className="panel scene">
+      <ChoiceResult event={branch.events.at(-1)} scenario={scenario} />
       <SceneArt category={scenario.id} className="scene-cover" />
       <div className="chapter"><span>{t("Scene {current} of {total}", { current: scene.index + 1, total: scene.count })}</span><span>{scene.when}</span></div>
       <div className="chapter-progress"><span style={{ width: `${(scene.index + 1) / scene.count * 100}%` }} /></div>
       <p className="eyebrow"><MapPin size={14} /> {scene.location}</p>
       <h1>{scene.title}</h1><p className="scene-body">{scene.body}</p>
-      {scene.last_event && <p className="last-event">{scene.last_event}</p>}
       {scene.reaction && <p className="last-event">{scene.reaction}</p>}
       {scene.dialogue && <blockquote>{scene.dialogue}</blockquote>}
       {scene.side_event && <details className="world"><summary>{t("A moment on the side")}</summary><p>{scene.side_event}</p></details>}
       {ai && !scene.personalized && <Button variant="ghost" disabled={busy} onClick={narrate}><Sparkles size={15} /> {t(scene.has_personalization ? "Translate AI scene" : "Personalize scene")}</Button>}
-      <div className="choice-list">{scene.choices.map((option) => <Button key={option.id} className="choice" variant="outline"
+      <div className="decision-heading"><h2>{t("What will you do?")}</h2>
+        {scene.choices.some(option => option.effects) && <p>{t("Arrows show what each choice changes in this story.")}</p>}</div>
+      <div className="choice-list decision-options">{scene.choices.map((option) => <Button key={option.id} className="choice" variant="outline"
         disabled={busy} onClick={() => choose(option.id, scene.index)}><span><strong>{option.label}</strong>
-          <small>{option.focus.map((key) => t(metrics[key as keyof typeof metrics] ?? "Character trust")).filter((item, i, all) => all.indexOf(item) === i).join(" · ")}</small>
+          {option.effects ? <ChoiceEffects effects={option.effects} scenario={scenario} /> :
+            <small>{option.focus.map(key => t(metrics[key as keyof typeof metrics] ?? "Character trust")).filter((item, i, all) => all.indexOf(item) === i).join(" · ")}</small>}
         </span><ArrowRight size={17} /></Button>)}</div>
       <WorldState branch={branch} />
       <p className="small-label">{path?.title}</p>
@@ -361,6 +389,7 @@ function Compare({ game, open, ask }: { ask: AskSelf; game: Game; open: (view: V
   }
   return <section><StartHeader eyebrow={story(categoryInfo[game.scenario_id].title)} title={t("Compare timelines")}><p>{t("See the choices, benefits, and trade-offs you experienced in each life.")}</p></StartHeader>
     <PersonalContext profile={game.profile} />
+    {a && game.profile.life_priorities && <PriorityComparison weights={game.profile.life_priorities} endings={b ? [a, b] : [a]} />}
     {a && b && <>
       <Divergence game={game} first={a} second={b} />
       <aside className="panel personal-context"><h2>{t("Guide between timelines")}</h2>
@@ -581,8 +610,10 @@ function GameInterface({ switchLocale }: { switchLocale: (locale: Locale) => voi
   function saveProfile(value: Omit<Profile, "id">) {
     void perform(async () => {
       await loadCatalog();
-      useGame.setState({ profile: await api<Profile>("/profiles", "POST", value) });
-      open("scenarios");
+      const profile = await api<Profile>("/profiles", "POST", value);
+      useGame.setState({ profile });
+      update(await api<Game>("/sessions", "POST", { profile_id: profile.id, scenario_id: profile.category }));
+      open("story");
     });
   }
 
@@ -665,8 +696,8 @@ function GameInterface({ switchLocale }: { switchLocale: (locale: Locale) => voi
       }
       switch (view) {
         case "story": content = <Story game={game} scenario={scenario} open={open}
-          start={(id) => { void mutation("/branches", "POST", { path_id: id }); }}
-          choose={(id, index) => { void mutation(`${branchPath}/choices`, "POST", { choice_id: id, scene_index: index }); }}
+          start={(id) => { void mutation("/branches", "POST", { path_id: id }, "story"); }}
+          choose={(id, index) => { void mutation(`${branchPath}/choices`, "POST", { choice_id: id, scene_index: index }, "story"); }}
           send={(npc, text) => mutation(`${branchPath}/npcs/${npc}/messages`, "POST", {
             text, locale, scene_index: game.branches.find((item) => item.id === game.active_id)?.scene?.index,
           })}

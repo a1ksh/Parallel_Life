@@ -32,7 +32,9 @@
         "social": "connections"
       },
       "motive": "Looking back, one possible reason was what I stood to gain in this area: {focus}."
-    }
+    },
+    "context_question": "How does my situation fit this decision?",
+    "context_reply": "You said “{context}”. Thinking about that, which part of this decision would be hardest to fit into your week? {support}"
   },
   "kk": {
     "language": "Kazakh (Қазақша, Cyrillic)",
@@ -67,7 +69,9 @@
         "social": "байланыс"
       },
       "motive": "Кейін ойласам, бұл шешімге осы саладағы мүмкіндік себеп болуы мүмкін: {focus}."
-    }
+    },
+    "context_question": "Осы шешімде менің жағдайымды қалай ескеруге болады?",
+    "context_reply": "Жағдайыңды былай сипаттадың: «{context}». Осы шешімнің қай тұсын апталық жоспарыңа сыйғызу қиын болар еді? {support}"
   },
   "ru": {
     "language": "Russian (Русский)",
@@ -102,6 +106,8 @@
         "social": "связи"
       },
       "motive": "Оглядываясь назад, я вижу возможный мотив — для меня имело значение то, что давал этот шаг ({focus})."
-    }
+    },
+    "context_question": "Как учесть мою ситуацию в этом решении?",
+    "context_reply": "Ты так описываешь свою ситуацию: «{context}». Какую часть этого решения будет труднее всего вписать в твою неделю? {support}"
   }
 }

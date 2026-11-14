@@ -12,6 +12,20 @@ MessageText = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 ValueId = Literal["career", "finances", "freedom", "knowledge", "wellbeing", "social"]
 
 
+PriorityLevel = Annotated[int, Field(strict=True, ge=1, le=5)]
+
+
+class LifePriorities(BaseModel):
+    model_config = {"extra": "forbid"}
+    skills: PriorityLevel
+    health: PriorityLevel
+    relationships: PriorityLevel
+    work: PriorityLevel
+    fulfillment: PriorityLevel
+    study: PriorityLevel
+    happiness: PriorityLevel
+
+
 class PlayerProfile(BaseModel):
     id: str = ""
     name: ShortText
@@ -22,8 +36,11 @@ class PlayerProfile(BaseModel):
     category: ScenarioId
     traits: str = Field(default="", max_length=180)
     values: str = Field(default="", max_length=180)
+    gender: Literal["", "woman", "man", "nonbinary"] = ""
+    personal_context: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] = ""
     background: str = Field(default="", max_length=300)
 
+    life_priorities: LifePriorities | None = None
     dilemma: str = Field(default="", max_length=300)
     constraint: str = Field(default="", max_length=300)
     selected_values: list[ValueId] = Field(default_factory=list, max_length=3)
@@ -118,6 +135,7 @@ class ActionExperiment(BaseModel):
     status: Literal["active", "completed", "skipped"] = "active"
     plan: ExperimentPlan | None = None
     reflection: ExperimentReflection | None = None
+    pass_offer: Literal["KZT_1490"] | None = None
     pass_interest: Literal["interested", "declined"] | None = None
 
 

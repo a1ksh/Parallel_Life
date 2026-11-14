@@ -72,7 +72,9 @@ def test_all_paths_and_endings(game_api, scenario):
                 assert len(scene["choices"]) >= 2
                 assert len(set(scene["npcs"])) >= 2
                 assert scene["count"] == 5
+                preview = scene["choices"][choice]["effects"]
                 game = decide(client, url, branch_id, index, choice)
+                assert active(game)["events"][-1]["effects"] == preview
             assert active(game)["world"] != original
             assert active(game)["ending"] == choice
     compare = client.get(f"{url}/comparison").json()
@@ -128,10 +130,11 @@ def test_reflection_experiment_and_deletion(game_api):
     assert client.put(endpoint, json={"plan": {**plan, "deadline": "2026-02-30"}}).status_code == 422
     assert client.put(endpoint, json={"plan": plan}).status_code == 200
     assert client.put(endpoint, json={"reflection": notes, "status": "completed"}).status_code == 200
-    assert client.put(endpoint, json={"pass_interest": "interested"}).status_code == 200
+    assert client.put(endpoint, json={"pass_interest": "interested"}).json()["experiment"]["pass_offer"] is None
+    assert client.put(endpoint, json={"pass_interest": "interested", "pass_offer": "KZT_1490"}).status_code == 200
     saved = client.get(session).json()
     assert saved["experiment"] == {"plan": plan, "reflection": notes, "status": "completed",
-                                   "checked": [0, 2], "pass_interest": "interested"}
+                                   "checked": [0, 2], "pass_interest": "interested", "pass_offer": "KZT_1490"}
     assert saved["passport"] == passport.json()["passport"]
     assert client.delete(session).status_code == 204
     assert client.get(session).status_code == 404
@@ -181,7 +184,7 @@ def test_hybrid_dialogue_uses_only_current_timeline_and_keeps_personality(game_a
     assert "price the pilot" in active(forked)["npcs"]["emma"]["messages"][-1]["text"]
     before, after = captured
     assert before["npc"] == after["npc"]
-    assert before["npc"]["name"] == "Emma Carter" and before["npc"]["goal"]
+    assert before["npc"]["name"] == "Aigerim Omarova" and before["npc"]["goal"]
     assert before["timeline"] == after["timeline"]
     assert "greenhouse" in before["earlier_player_statements"][0]["text"]
     assert "greenhouse" in after["earlier_player_statements"][0]["text"]
@@ -400,15 +403,33 @@ def test_personal_context_survives_reflection_and_reload(game_api):
     for invalid in (["freedom"], ["freedom", "freedom"], ["freedom", "money"],
                     ["career", "freedom", "finances", "social"]):
         assert client.post("/api/profiles", json={**profile, "selected_values": invalid}).status_code == 422
+    profile.update(gender="woman", personal_context="I share a flat in Almaty.")
+    for invalid in ({"gender": "unexpected"}, {"personal_context": "x" * 301}):
+        assert client.post("/api/profiles", json={**profile, **invalid}).status_code == 422
     result = client.post("/api/profiles", json=profile)
     assert result.status_code == 201
     session = client.post("/api/sessions", json={"profile_id": result.json()["id"], "scenario_id": "career"}).json()
     url = f"/api/sessions/{session['id']}"
     timeline = branch(client, url, path_id="business")["active_id"]
+    reply = chat(client, url, timeline, 0, "emma", "How does my situation fit this decision?")
+    assert profile["personal_context"] in active(reply)["npcs"]["emma"]["messages"][-1]["text"]
     for i in range(5):
         decide(client, url, timeline, i, 0)
     response = client.put(f"{url}/reflection", json={"priorities": ["Independence"], "dilemma": "overwritten"})
     assert response.status_code == 200
     saved = client.get(url).json()
+    assert saved["profile"]["gender"] == "woman"
+    assert saved["profile"]["personal_context"] == profile["personal_context"]
     for key, value in context.items():
         assert saved["passport"][key] == saved["profile"][key] == value
+
+def test_life_priority_weights_are_validated_and_retained(game_api):
+    client, _, _ = game_api
+    weights = dict(skills=2, health=5, relationships=4, work=3, fulfillment=1, study=4, happiness=2)
+    fields = dict(name="Avery", age=25, avatar="orbit", situation="Working", goal="Explore", category="career")
+    for invalid in [{}, {**weights, "health": 0}, {**weights, "work": 6}, {**weights, "study": True},
+                    {**weights, "other": 4}, {**weights, "skills": "3"}]:
+        assert client.post("/api/profiles", json={**fields, "life_priorities": invalid}).status_code == 422
+    profile = client.post("/api/profiles", json={**fields, "life_priorities": weights}).json()
+    session = client.post("/api/sessions", json={"profile_id": profile["id"], "scenario_id": "career"}).json()
+    assert client.get("/api/sessions/" + session["id"]).json()["profile"]["life_priorities"] == weights

@@ -85,7 +85,7 @@ def scene_view(game: GameSession, branch):
             "authored_title": scene["title"], "authored_body": scene["body"], "variants": variants,
             "dialogue": narration.get("dialogue"), "personalized": bool(narration),
             "reaction": narration.get("reaction"), "side_event": narration.get("side_event"),
-            "choices": [{"id": str(i), "label": option[0], "focus": list(option[1])}
+            "choices": [{"id": str(i), "label": option[0], "focus": list(option[1]), "effects": option[1]}
                         for i, option in enumerate(scene["choices"])]}
 
 
@@ -122,7 +122,7 @@ async def ask_other_self(session_id: str, branch_id: str, payload: ChatInput, db
         return view(game)
     alternative = next(choice[0] for i, choice in enumerate(beat["choices"]) if str(i) != event.choice_id)
     ending = next((item for item in comparisons(game) if item["id"] == branch_id), None)
-    context = {"path": path["title"], "situation": beat["body"], "selected": event.model_dump(),
+    context = {**game.profile.model_dump(include={"gender", "personal_context"}), "path": path["title"], "situation": beat["body"], "selected": event.model_dump(),
                "unchosen_option": alternative,
                "events": [item.model_dump() for item in branch.events],
                "ending": ending and {k: ending[k] for k in ("title", "gain", "cost")},
@@ -271,7 +271,7 @@ async def branch_narrate(session_id: str, branch_id: str, db: DB, guest: Owner, 
     context = {
         "scene": scene_context(scene),
         "timeline": {"scenario": scenario["title"], "path": path_for(game, branch)["title"]},
-        "profile": game.profile.model_dump(include={"age", "goal", "values", "traits"}),
+        "profile": game.profile.model_dump(include={"age", "goal", "values", "traits", "gender", "personal_context"}),
         "events": [event.model_dump(include={"choice", "outcome"}) for event in branch.events],
         "npcs": npc_context,
     }
@@ -303,7 +303,9 @@ async def branch_chat(session_id: str, branch_id: str, npc_id: str, payload: Cha
     path = path_for(game, branch)
     events = [event.model_dump(include={"choice", "outcome"}) for index, event in enumerate(branch.events)
               if npc_id in path["beats"][index]["npcs"]]
-    timeline = {"scenario": SCENARIOS[game.scenario_id]["title"], "path": path["title"]}
+    timeline = {"scenario": SCENARIOS[game.scenario_id]["title"], "path": path["title"],
+                **game.profile.model_dump(include={"gender", "personal_context"})}
+    npc = {**npc, "name": authored(payload.locale, npc["name"])}
     # Only pass witnessed outcomes to the NPC; the scene's previous event may have happened without them.
     reply, mode, reason = await npc_reply(npc, state, {**scene, "last_event": None}, events, payload.text,
                                          timeline, reserve_ai(db, guest), payload.locale)
@@ -349,6 +351,10 @@ def experiment(session_id: str, payload: ActionExperiment, db: DB, guest: Owner)
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
     if "checked" in changes:
         changes["checked"] = sorted(set(payload.checked))
+    if payload.pass_interest:
+        changes["pass_offer"] = payload.pass_offer
+    elif "pass_offer" in changes:
+        raise HTTPException(422, "An offer requires an interest response.")
     if payload.plan:
         try:
             date.fromisoformat(payload.plan.deadline)

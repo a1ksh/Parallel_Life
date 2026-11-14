@@ -1,20 +1,26 @@
 import policy from '../backend/app/services/ai-policy.json' with { type: 'json' };
 import localePolicy from '../backend/app/services/locale-policy.json' with { type: 'json' };
+import legacyText from '../backend/app/scenarios/legacy-text.json' with { type: 'json' };
 import kk from '../backend/app/scenarios/kk.json' with { type: 'json' };
 import ru from '../backend/app/scenarios/ru.json' with { type: 'json' };
 
 const storyText = { kk, ru };
+const translateStory = (locale, value) => {
+  const canonical = Object.hasOwn(legacyText, value) ? legacyText[value] : value;
+  return storyText[locale]?.[canonical] ?? canonical;
+};
 export const validLocale = (locale) => typeof locale === 'string' && Object.hasOwn(localePolicy, locale);
 export const narrationVariants = (saved = {}) => Object.hasOwn(saved, 'title') ? { en: saved } : saved;
 
-export function scriptedReply(locale, npc, state, events, text) {
+export function scriptedReply(locale, npc, state, events, text, personalContext = '') {
   const ui = localePolicy[locale];
-  const t = (value) => storyText[locale]?.[value] ?? value;
+  const t = (value) => translateStory(locale, value);
   const prior = state.messages.findLast((item) => item.role === 'player');
   const event = events.at(-1)?.outcome;
-  const fields = { message: prior?.text.slice(0, 120), followup: t(event ?? npc.support),
+  const fields = { context: personalContext, message: prior?.text.slice(0, 120), followup: t(event ?? npc.support),
     event: event && t(event), support: t(npc.support), goal: t(npc.goal) };
   const fill = (key) => ui[key].replace(/\{(\w+)\}/g, (_, name) => fields[name] ?? '');
+  if (personalContext && text.trim().toLowerCase() === ui.context_question.toLowerCase()) return fill('context_reply');
   if (new RegExp(ui.recall, 'iu').test(text) && (prior || event)) return fill(prior ? 'earlier' : 'witnessed');
   if (new RegExp(ui.goal, 'iu').test(text)) return fill('motivation');
   if (event && !prior) return `${t(event)} ${t(npc.support)}`;

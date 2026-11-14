@@ -10,7 +10,7 @@ export function localizeScenario(scenario: Scenario, locale: Locale): Scenario {
     intro: t(scenario.intro), question: t(scenario.question), questions: scenario.questions.map(t),
     experiment: { title: t(experiment.title), description: t(experiment.description), steps: experiment.steps.map(t) },
     npcs: scenario.npcs.map((npc): NPC => ({
-      ...npc, role: t(npc.role), background: t(npc.background), goal: t(npc.goal), mood: t(npc.mood),
+      ...npc, name: t(npc.name), avatar: t(npc.name).split(" ").slice(-2).map(word => word[0]).join(""), role: t(npc.role), background: t(npc.background), goal: t(npc.goal), mood: t(npc.mood),
       traits: npc.traits.map(t),
     })),
     paths: scenario.paths.map((path) => ({ ...path, title: t(path.title), short: t(path.short), description: t(path.description) })),

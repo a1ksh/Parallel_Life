@@ -27,7 +27,7 @@ function sceneView(game, branch) {
     authored_title: scene.title, authored_body: scene.body, variants,
     personalized: Boolean(generated), dialogue: generated?.dialogue ?? null,
     reaction: generated?.reaction ?? null, side_event: generated?.side_event ?? null,
-    choices: scene.choices.map(([label, effects], i) => ({ id: String(i), label, focus: Object.keys(effects) })) };
+    choices: scene.choices.map(([label, effects], i) => ({ id: String(i), label, focus: Object.keys(effects), effects })) };
 }
 
 function endings(game) {
@@ -111,11 +111,11 @@ async function chat(env, owner, game, branch, npcId, input) {
   const path = pathFor(game, branch);
   const events = branch.events.flatMap(({ choice, outcome }, i) => path.beats[i].npcs.includes(npcId) ? [{ choice, outcome }] : []);
   const { data, reason } = await generateAi(env, owner, 'npc_reply', {
-    npc, trust: state.trust, timeline: { scenario: scenario.title, path: path.title },
+    npc: { ...npc, name: storyText[locale]?.[npc.name] ?? npc.name }, trust: state.trust, timeline: { scenario: scenario.title, path: path.title, gender: game.profile.gender, personal_context: game.profile.personal_context },
     scene: aiScene({ ...scene, last_event: null }), events, ...aiConversation(state.messages, text), text,
   }, locale);
   const live = Boolean(data);
-  const reply = data?.reply ?? scriptedReply(locale, npc, state, events, text);
+  const reply = data?.reply ?? scriptedReply(locale, npc, state, events, text, game.profile.personal_context);
   state.messages.push({ role: 'player', text, locale }, { role: 'npc', text: reply, mode: live ? 'live' : 'scripted', locale });
   if (state.messages.length <= 12) state.trust = bounded(state.trust + 1);
   if (currentScene(game, branch).choices.length !== scene.choices.length) delete branch.narration[scene.index];
@@ -140,14 +140,14 @@ async function askOtherSelf(env, owner, game, branch, input) {
   if (previous?.scene_index === index && previous.locale === locale && previous.question === question &&
       previous.recorded_events === branch.events.length) return { updated: false };
   const { data, reason } = await generateAi(env, owner, 'other_self', {
-    path: path.title, situation, selected, unchosen_option: alternative, events: branch.events,
+    path: path.title, gender: game.profile.gender, personal_context: game.profile.personal_context, situation, selected, unchosen_option: alternative, events: branch.events,
     ending: ending ? { title: ending.title, gain: ending.gain, cost: ending.cost } : null,
     history: history.slice(-4), question,
   }, locale);
   let reply = data?.reply;
   if (!reply) {
     const ui = localePolicy[locale].self;
-    const t = value => storyText[locale]?.[value] ?? value;
+    const t = value => translateStory(locale, value);
     const intent = Object.entries(ui.patterns).find(([, pattern]) => new RegExp(pattern, 'iu').test(question))?.[0] ?? 'unsupported';
     const fields = { choice: t(selected.choice), situation: t(situation), outcome: t(selected.outcome), alternative: t(alternative) };
     const parts = [intent === 'why' ? 'why' : 'result'];
@@ -183,7 +183,7 @@ async function narrate(env, owner, game, branch, locale) {
   const { profile } = game;
   const context = {
     scene: aiScene(scene), timeline: { scenario: scenario.title, path: pathFor(game, branch).title },
-    profile: { age: profile.age, goal: profile.goal, values: profile.values, traits: profile.traits },
+    profile: { age: profile.age, goal: profile.goal, values: profile.values, traits: profile.traits, gender: profile.gender, personal_context: profile.personal_context },
     events: branch.events.map(({ choice, outcome }) => ({ choice, outcome })),
     npcs: scenario.npcs.filter((npc) => scene.npcs.includes(npc.id)).map((npc) => ({ ...npc, trust: branch.npcs[npc.id].trust })),
   };
@@ -219,11 +219,18 @@ async function profileRoute(db, method, owner, input) {
     const { results } = await db.prepare('SELECT data FROM player_profiles WHERE owner = ?').bind(owner).all();
     return json(results.map(({ data }) => JSON.parse(data)));
   }
-  const { name, age, avatar, situation, goal, category, traits = '', values = '', background = '' } = input;
+  const { gender = '', personal_context = '', name, age, avatar, situation, goal, category, traits = '', values = '', background = '' } = input;
   if (method !== 'POST') fail(405, 'Method not allowed.');
-  if (![name, situation, goal].every((value) => validText(value, 120)) || !Number.isInteger(age) || age < 18 || age > 120 ||
+  if (!['', 'woman', 'man', 'nonbinary'].includes(gender) || !validText(personal_context, 300, false) ||
+      ![name, situation, goal].every((value) => validText(value, 120)) || !Number.isInteger(age) || age < 18 || age > 120 ||
       !['dawn', 'orbit', 'night', 'ember'].includes(avatar) || !scenarioFor(category) ||
       !validText(traits, 180, false) || !validText(values, 180, false) || !validText(background, 300, false)) fail(422, 'Check the avatar fields and try again.');
+  const life_priorities = input.life_priorities ?? null;
+  const dimensions = ['skills', 'health', 'relationships', 'work', 'fulfillment', 'study', 'happiness'];
+  if (life_priorities !== null && (typeof life_priorities !== 'object' || Array.isArray(life_priorities) ||
+      Object.keys(life_priorities).length !== dimensions.length || !dimensions.every(key =>
+        Number.isInteger(life_priorities[key]) && life_priorities[key] >= 1 && life_priorities[key] <= 5)))
+    fail(422, 'Choose an importance from 1 to 5 for each life priority.');
   const { dilemma = '', constraint = '', selected_values = [] } = input;
   if (!validText(dilemma, 300, false) || !validText(constraint, 300, false) || !Array.isArray(selected_values))
     fail(422, 'Check the personal dilemma fields.');
@@ -232,7 +239,7 @@ async function profileRoute(db, method, owner, input) {
        new Set(selected_values).size !== selected_values.length || !selected_values.every(value => typeof value === "string" && Object.hasOwn(worldDefaults, value))))
     fail(422, 'Include a dilemma, a constraint, and two or three distinct values.');
   const profile = { id: crypto.randomUUID(), name: name.trim(), age, avatar, situation: situation.trim(),
-    goal: goal.trim(), category, traits, values, background, dilemma: dilemma.trim(), constraint: constraint.trim(), selected_values };
+    goal: goal.trim(), gender, personal_context: personal_context.trim(), category, traits, values, background, life_priorities, dilemma: dilemma.trim(), constraint: constraint.trim(), selected_values };
   await db.prepare('INSERT INTO player_profiles (id, owner, data) VALUES (?, ?, ?)').bind(profile.id, owner, JSON.stringify(profile)).run();
   return json(profile, 201);
 }
@@ -330,9 +337,13 @@ async function gameRoute(request, env, owner, id, tail) {
       if (![outcome, surprise, priority].every((text) => validText(text, 500))) fail(422, 'Check your experiment reflection.');
       next.reflection = { outcome: outcome.trim(), surprise: surprise.trim(), priority: priority.trim() };
     }
+    if (input.pass_offer != null && input.pass_interest == null) fail(422, 'An offer requires an interest response.');
     if (input.pass_interest != null) {
       if (!['interested', 'declined'].includes(input.pass_interest)) fail(422, 'Choose an interest response.');
+      if (input.pass_offer != null && input.pass_offer !== 'KZT_1490') fail(422, 'Unknown offer.');
       next.pass_interest = input.pass_interest;
+      if (input.pass_offer) next.pass_offer = input.pass_offer;
+      else delete next.pass_offer;
     }
     game.experiment = next;
   } else fail(404, 'This action could not be found.');

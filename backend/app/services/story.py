@@ -129,6 +129,8 @@ async def npc_reply(npc: dict, state: NPCState, scene: dict, events: list[dict],
     ui = LOCALES[locale]
     outcome = authored(locale, events[-1]["outcome"]) if events else None
     support = authored(locale, npc["support"])
+    if timeline.get("personal_context") and player.strip().casefold() == ui["context_question"].casefold():
+        return ui["context_reply"].format(context=timeline["personal_context"], support=support), "scripted", reason
     if re.search(ui["recall"], player, re.I):
         previous = next((item.text for item in reversed(state.messages) if item.role == "player"), None)
         if previous:

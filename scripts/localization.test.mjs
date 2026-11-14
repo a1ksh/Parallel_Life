@@ -21,7 +21,7 @@ test('all authored scenes, choices, NPC text and ending fields have Kazakh and R
     const [label, , outcome] = opportunities[s.id];
     add(label, outcome);
     assert.equal(s.paths.length, 3);
-    for (const { id, name, avatar, ...npcText } of s.npcs) add(npcText);
+    for (const { id, avatar, ...npcText } of s.npcs) add(npcText);
     for (const p of s.paths) {
       add(p.title, p.short, p.description, p.endings);
       [...p.beats, after[s.id][p.id]].forEach(beat);
@@ -35,6 +35,15 @@ test('all authored scenes, choices, NPC text and ending fields have Kazakh and R
     assert.deepEqual(Object.keys(translations).filter((key) => !visible.has(key)), []);
     const missing = [...visible].filter((key) => !translations[key] || translations[key] === key || !/\p{Script=Cyrillic}/u.test(translations[key]));
     assert.deepEqual(missing, [], `${lang} missing or untranslated authored strings`);
+  }
+});
+
+test('old authored text resolves to translated current scenes', () => {
+  const aliases = scenarios('legacy-text');
+  assert.equal(aliases['Capitol Hill coffee shop'], 'Coffee shop near the Green Bazaar');
+  for (const lang of ['kk', 'ru']) {
+    const text = scenarios(lang);
+    for (const canonical of Object.values(aliases)) assert.ok(text[canonical], canonical);
   }
 });
 

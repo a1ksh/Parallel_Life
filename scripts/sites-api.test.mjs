@@ -50,10 +50,10 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
   }
   try {
     const landing = await call('/');
-    assert.match(landing, /One life\./);
+    assert.match(landing, /What if you/);
     assert.match(landing, /href="\/kk"[^>]*>KZ/);
     const structure = (html) => [...html.matchAll(/<(header|nav|section|button)[^>]* class="([^"]+)"/g)].map(([, tag, name]) => [tag, name]);
-    for (const [locale, headline] of [['en', 'Infinite possibilities.'], ['kk', 'Шексіз мүмкіндік.'], ['ru', 'Бесконечные возможности.']]) {
+    for (const [locale, headline] of [['en', 'chose differently?'], ['kk', 'таңдасаңыз ше?'], ['ru', 'выбрать другой путь?']]) {
       const localized = await call('/' + locale);
       assert.ok(localized.includes(headline));
       assert.ok(localized.includes(`<html lang="${locale}"`));
@@ -74,14 +74,25 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     assert.deepEqual((await call('/api/scenarios')).map((scenario) => scenario.paths.length), [3, 3, 3]);
     const context = { dilemma: 'Keep my salary or start a studio?', constraint: 'Rent is due.',
       selected_values: ['freedom', 'finances'] };
-    const fields = { name: 'Avery', age: 29, avatar: 'dawn', goal: 'Explore a decision', situation: 'At work', category: 'career', ...context };
+    const fields = { gender: 'nonbinary', personal_context: 'I live in Astana.', name: 'Avery', age: 29, avatar: 'dawn', goal: 'Explore a decision', situation: 'At work', category: 'career', ...context };
     for (const values of [['freedom'], ['freedom', 'freedom'], ['freedom', 'unknown'], ['freedom', 'finances', 'social', 'career']])
       await call('/api/profiles', 'POST', { ...fields, selected_values: values }, 422);
-    const profile = await call('/api/profiles', 'POST', fields, 201);
+    for (const invalid of [{ gender: 7 }, { personal_context: 'x'.repeat(301) }])
+      await call('/api/profiles', 'POST', { ...fields, ...invalid }, 422);
+    const weights = { skills: 2, health: 5, relationships: 4, work: 3, fulfillment: 1, study: 4, happiness: 2 };
+    for (const invalid of [{}, { ...weights, health: 0 }, { ...weights, study: true }, { ...weights, extra: 3 }])
+      await call('/api/profiles', 'POST', { ...fields, life_priorities: invalid }, 422);
+    const profile = await call('/api/profiles', 'POST', { ...fields, life_priorities: weights }, 201);
     const game = await call('/api/sessions', 'POST', { profile_id: profile.id, scenario_id: 'career' }, 201);
     const session = `/api/sessions/${game.id}`;
+    assert.equal(game.profile.gender, fields.gender);
+    assert.equal(game.profile.personal_context, fields.personal_context);
+    assert.deepEqual((await call(session)).profile.life_priorities, weights);
     const source = (await call(session + '/branches', 'POST', { path_id: 'business' })).active_id;
     const path = (id) => `${session}/branches/${id}`;
+    const contextual = await call(path(source) + '/npcs/daniel/messages', 'POST',
+      { scene_index: 0, locale: 'kk', text: 'Осы шешімде менің жағдайымды қалай ескеруге болады?' });
+    assert.ok(contextual.branches[0].npcs.daniel.messages.at(-1).text.includes(fields.personal_context));
     await call(path(source) + '/npcs/emma/messages', 'POST', { scene_index: 0, text: 'What is your goal?' });
     await call(path(source) + '/choices', 'POST', { scene_index: 0, choice_id: '0' });
     const before = await call(path(source) + '/npcs/emma/messages', 'POST', { scene_index: 1, text: 'Do you remember earlier?' });
@@ -114,7 +125,7 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
         { role: 'npc', text: 'Let’s price the work before we promise it.', mode: 'live', locale: 'en' });
       assert.deepEqual(providerContext.recent.filter(({ role }) => role === 'player').map(({ text }) => text), ['What is your goal?']);
       assert.deepEqual(providerContext.events, []);
-      assert.equal(providerContext.npc.name, 'Emma Carter');
+      assert.equal(providerContext.npc.name, 'Aigerim Omarova');
       assert.equal(providerContext.timeline.path, 'Build Your Own Business');
     } finally {
       delete env.OPENAI_API_KEY;
@@ -177,8 +188,8 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     await call(session + '/experiment', 'PUT', { plan: { ...plan, deadline: '2026-02-30' } }, 422);
     await call(session + '/experiment', 'PUT', { plan });
     await call(session + '/experiment', 'PUT', { reflection, status: 'completed' });
-    await call(session + '/experiment', 'PUT', { pass_interest: 'declined' });
-    assert.deepEqual((await call(session)).experiment, { checked: [0], status: 'completed', plan, reflection, pass_interest: 'declined' });
+    await call(session + '/experiment', 'PUT', { pass_interest: 'declined', pass_offer: 'KZT_1490' });
+    assert.deepEqual((await call(session)).experiment, { checked: [0], status: 'completed', plan, reflection, pass_interest: 'declined', pass_offer: 'KZT_1490' });
     await call(session, 'DELETE', undefined, 204);
     assert.deepEqual(await call('/api/sessions'), []);
     assert.deepEqual(await call('/api/profiles'), []);

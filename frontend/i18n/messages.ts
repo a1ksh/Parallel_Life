@@ -1,4 +1,5 @@
 import ui from "../messages/ui.json";
+import legacyText from "../../backend/app/scenarios/legacy-text.json";
 import kk from "../../backend/app/scenarios/kk.json";
 import ru from "../../backend/app/scenarios/ru.json";
 import type { Locale } from "./config";
@@ -8,6 +9,7 @@ const stories: Record<"kk" | "ru", Record<string, string>> = { kk, ru };
 const interfaceMessages: Record<string, { kk: string; ru: string }> = ui;
 
 export function authored(locale: Locale, value: string): string {
+  if (Object.hasOwn(legacyText, value)) value = (legacyText as Record<string, string>)[value];
   if (locale === "en") return value;
   return stories[locale][value] ?? interfaceMessages[value]?.[locale] ?? value;
 }

@@ -2,29 +2,29 @@
   "career": {
     "business": {
       "title": "The first Monday you can take off",
-      "location": "Seattle · The studio after closing",
+      "location": "Almaty · The studio after closing",
       "npcs": ["emma", "daniel"],
-      "body": "The business can cover a week without you for the first time. Emma has a trial customer waiting for a decision, and you have already promised yourself a day away from the studio.",
+      "body": "The business can cover a week without you for the first time. Aigerim has a trial customer waiting for a decision, and you have already promised yourself a day away from the studio.",
       "choices": [
-        ["Ask Emma to lead the trial", {"social": 7, "trust:emma": 6, "freedom": 6}, "Emma ran the trial. On your day off, the first customer message you saw was a report of what she had learned."],
+        ["Ask Aigerim to lead the trial", {"social": 7, "trust:emma": 6, "freedom": 6}, "Aigerim ran the trial. On your day off, the first customer message you saw was a report of what she had learned."],
         ["Keep the trial small and run it yourself", {"career": 7, "knowledge": 6, "freedom": -3}, "You ran one short trial and wrote down where the handoff still needed work."]
       ]
     },
     "change": {
       "title": "Someone asks how you got here",
-      "location": "Seattle · An evening career meetup",
+      "location": "Almaty · An evening career meetup",
       "npcs": ["daniel", "emma"],
-      "body": "A person from your old industry asks what the switch was like. Daniel offers to make room at his workshop. Your new team also needs someone to document what made your latest project work.",
+      "body": "A person from your old industry asks what the switch was like. Daniyar offers to make room at his workshop. Your new team also needs someone to document what made your latest project work.",
       "choices": [
-        ["Tell the whole story at Daniel’s workshop", {"social": 9, "trust:daniel": 5}, "You spoke about the rejection as well as the offer. Afterward, someone asked to see the project that opened your first door."],
+        ["Tell the whole story at Daniyar’s workshop", {"social": 9, "trust:daniel": 5}, "You spoke about the rejection as well as the offer. Afterward, someone asked to see the project that opened your first door."],
         ["Write a guide for the new team", {"career": 7, "knowledge": 6}, "The team started handing your guide to new colleagues. A shortcut from your old job became the page everyone bookmarked."]
       ]
     },
     "grow": {
       "title": "A decision you can hand over",
-      "location": "Seattle · The team’s weekly planning room",
+      "location": "Almaty · The team’s weekly planning room",
       "npcs": ["rachel", "daniel"],
-      "body": "A colleague wants to handle a decision you usually make. Rachel asks whether you have enough confidence to let them run it, or whether this is a good moment to show the team how you think.",
+      "body": "A colleague wants to handle a decision you usually make. Dana asks whether you have enough confidence to let them run it, or whether this is a good moment to show the team how you think.",
       "choices": [
         ["Give the colleague ownership and stay available", {"social": 8, "freedom": 6, "trust:rachel": 4}, "Your colleague made a call you would not have made. You agreed on how to review the result, then left the decision with them."],
         ["Make the decision together in the open", {"career": 6, "knowledge": 6, "trust:rachel": 3}, "You talked through the decision in front of the team. It took longer, but two colleagues used the same method the following week."]
@@ -36,27 +36,27 @@
       "title": "The last table by the window",
       "location": "The international alumni reading room",
       "npcs": ["sophia", "alex"],
-      "body": "Sophia asks what you want to keep from your time abroad. She can connect you with a cross-campus project, or the two of you could protect a regular conversation with no work attached.",
+      "body": "Madina asks what you want to keep from your time abroad. She can connect you with a cross-campus project, or the two of you could protect a regular conversation with no work attached.",
       "choices": [
-        ["Set a monthly call with Sophia", {"social": 7, "wellbeing": 7, "trust:sophia": 5}, "You put the call on the calendar. The first month, neither of you had anything impressive to report, which made it easier to keep talking."],
+        ["Set a monthly call with Madina", {"social": 7, "wellbeing": 7, "trust:sophia": 5}, "You put the call on the calendar. The first month, neither of you had anything impressive to report, which made it easier to keep talking."],
         ["Join the cross-campus project", {"knowledge": 8, "career": 6, "freedom": -3}, "You joined the project. A familiar question returned in a different accent, and you found yourself answering it differently."]
       ]
     },
     "local": {
       "title": "Where the research goes next",
-      "location": "Boston · The university poster hall",
+      "location": "Astana · The university poster hall",
       "npcs": ["olivia", "alex"],
-      "body": "Olivia asks what you want to happen to your work after the presentation. You have time to prepare a version the community can use, or to document a question another researcher could pick up.",
+      "body": "Aliya asks what you want to happen to your work after the presentation. You have time to prepare a version the community can use, or to document a question another researcher could pick up.",
       "choices": [
         ["Share a practical version with the community", {"social": 7, "career": 5}, "Someone at the presentation showed you how they would adapt your work. You changed the instructions before sending the final version."],
-        ["Document a question for the next researcher", {"knowledge": 9, "trust:olivia": 5}, "You left a clean record of the result and one unresolved question. Olivia added it to the lab’s next meeting."]
+        ["Document a question for the next researcher", {"knowledge": 9, "trust:olivia": 5}, "You left a clean record of the result and one unresolved question. Aliya added it to the lab’s next meeting."]
       ]
     },
     "work": {
       "title": "Show what you learned",
-      "location": "Boston · A neighborhood workshop",
+      "location": "Astana · A neighborhood workshop",
       "npcs": ["alex", "olivia"],
-      "body": "Alex asks you to bring something that shows how you learn. The workshop has room for a public demonstration or a small session on one problem you still cannot solve.",
+      "body": "Arman asks you to bring something that shows how you learn. The workshop has room for a public demonstration or a small session on one problem you still cannot solve.",
       "choices": [
         ["Demonstrate something you shipped", {"career": 7, "social": 7}, "You demonstrated the project and explained where someone else had helped. A new attendee stayed afterward to ask how to get started."],
         ["Bring the unsolved problem", {"knowledge": 9, "wellbeing": 4}, "You brought the unsolved problem. The best question came from someone who had never worked in your field."]
@@ -66,9 +66,9 @@
   "relationships": {
     "invest": {
       "title": "A plan for an ordinary weekend",
-      "location": "Chicago · The table after dinner",
+      "location": "Karaganda · The table after dinner",
       "npcs": ["jordan", "mia"],
-      "body": "Jordan asks what should go on the shared calendar this month. There is a weekend when you could build a small tradition together, or leave the days open and check in when both of you know what you need.",
+      "body": "Azamat asks what should go on the shared calendar this month. There is a weekend when you could build a small tradition together, or leave the days open and check in when both of you know what you need.",
       "choices": [
         ["Make a recurring plan together", {"social": 7, "trust:jordan": 6}, "You chose one recurring breakfast. The first time someone needed to cancel, you rescheduled it together."],
         ["Protect one free day each", {"freedom": 8, "wellbeing": 5, "trust:jordan": 3}, "You each kept a free day. When you met again, you had things to tell each other that had happened separately."]
@@ -76,22 +76,22 @@
     },
     "space": {
       "title": "The next invitation",
-      "location": "Chicago · A corner café",
+      "location": "Karaganda · A corner café",
       "npcs": ["jordan", "mia"],
-      "body": "A friend’s gathering puts you and Jordan on the same invitation list. You have time to decide how you would like to be there and to let Jordan decide for themself.",
+      "body": "A friend’s gathering puts you and Azamat on the same invitation list. You have time to decide how you would like to be there and to let Azamat decide for themself.",
       "choices": [
         ["Name what contact you’re comfortable with", {"trust:jordan": 5, "wellbeing": 7}, "You sent a short note about what felt comfortable. The gathering was easier once neither of you had to guess."],
-        ["Make your own plan for the evening", {"freedom": 8, "social": 4}, "You kept the evening for a plan with Mia. The invitation stayed unanswered until you were ready to decide."]
+        ["Make your own plan for the evening", {"freedom": 8, "social": 4}, "You kept the evening for a plan with Dinara. The invitation stayed unanswered until you were ready to decide."]
       ]
     },
     "new": {
       "title": "A place you choose to return to",
-      "location": "Chicago · The bookstore after hours",
+      "location": "Karaganda · The bookstore after hours",
       "npcs": ["taylor", "mia"],
-      "body": "Taylor asks whether you want to help with the next reading night. Mia offers a smaller evening together that would leave more time for the rest of your week.",
+      "body": "Samat asks whether you want to help with the next reading night. Dinara offers a smaller evening together that would leave more time for the rest of your week.",
       "choices": [
         ["Help plan the next reading night", {"social": 9, "trust:taylor": 5}, "You took one task for the reading night. At the next meeting, someone set out a chair for you before you arrived."],
-        ["Keep the evening small", {"wellbeing": 8, "freedom": 5, "trust:mia": 3}, "You shared dinner with Mia and went home early. The bookstore invitation was still there when you wanted it."]
+        ["Keep the evening small", {"wellbeing": 8, "freedom": 5, "trust:mia": 3}, "You shared dinner with Dinara and went home early. The bookstore invitation was still there when you wanted it."]
       ]
     }
   }
