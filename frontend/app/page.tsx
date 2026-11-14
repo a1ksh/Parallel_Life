@@ -1,5 +1,5 @@
-import { ParallelLife } from "@/components/parallel-life";
+import { CrossroadsGame } from "@/components/crossroads-game";
 
 export default function Page() {
-  return <ParallelLife />;
+  return <CrossroadsGame />;
 }
