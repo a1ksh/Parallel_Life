@@ -141,7 +141,7 @@ function Chat({ game, branch, scenario, send }: {
   const limited = messages.length >= 32;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!text.trim()) return;
+    if (busy || sending || limited || !text.trim()) return;
     setSending(true);
     try {
       if (await send(npc.id, text.trim())) setText("");
@@ -156,11 +156,11 @@ function Chat({ game, branch, scenario, send }: {
     <p className="npc-role">{npc.role} · {npc.mood}</p>
     <details className="npc-bio"><summary>About {npc.name}</summary><p>{npc.background}</p><p>{npc.goal}</p></details>
     <p className="small-label">{ai ? "AI conversation available" : "Scripted demo conversation"} · Trust {state?.trust ?? 50}</p>
-    {ai && <p className="npc-role">Messages may be sent to the AI provider to write the character’s reply.</p>}
+    {ai && <p className="npc-role">This scene and relevant messages from this timeline may be sent to the AI provider to write the character’s reply.</p>}
     <div className="messages" role="log" aria-live="polite" aria-label="Conversation" tabIndex={0}
       ref={(node) => { if (node) node.scrollTop = node.scrollHeight; }}>
       {messages.length ? messages.map((message, i) => <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        key={i} className={`message ${message.role}`}><small>{message.role === "player" ? game.profile.name : `${npc.name}${message.mode === "scripted" ? " · Scripted" : ""}`}</small><p>{message.text}</p></motion.div>)
+        key={i} className={`message ${message.role}`}><small>{message.role === "player" ? game.profile.name : `${npc.name}${message.mode === "scripted" ? " · Scripted" : message.mode === "live" ? " · Live AI" : ""}`}</small><p>{message.text}</p></motion.div>)
         : <p className="muted">Ask about their goals or something that happened in this timeline.</p>}
     </div>
     <form className="chat-form" onSubmit={submit}>
@@ -218,7 +218,9 @@ function Story({ game, scenario, start, choose, send, open, narrate }: {
       <p className="eyebrow"><MapPin size={14} /> {scene.location}</p>
       <h1>{scene.title}</h1><p className="scene-body">{scene.body}</p>
       {scene.last_event && <p className="last-event">{scene.last_event}</p>}
+      {scene.reaction && <p className="last-event">{scene.reaction}</p>}
       {scene.dialogue && <blockquote>{scene.dialogue}</blockquote>}
+      {scene.side_event && <details className="world"><summary>A moment on the side</summary><p>{scene.side_event}</p></details>}
       {ai && !scene.personalized && <Button variant="ghost" disabled={busy} onClick={narrate}><Sparkles size={15} /> Personalize scene</Button>}
       <div className="choice-list">{scene.choices.map((option) => <Button key={option.id} className="choice" variant="outline"
         disabled={busy} onClick={() => choose(option.id, scene.index)}><span><strong>{option.label}</strong>
@@ -514,6 +516,7 @@ export function ParallelLife() {
       {view === "onboarding" && <Button variant="ghost" className="back" onClick={() => open("home")}><ArrowLeft size={15} /> Home</Button>}
       {journey && <JourneyNav game={game} view={view} open={open} />}
       {error && <p className="error" role="alert">{error}</p>}
+      {view === "story" && game?.ai_notice && <p className="busy" role="status">{game.ai_notice}</p>}
       {busy && <p className="busy" role="status">Working…</p>}
       <AnimatePresence mode="wait" initial={false}><motion.div key={key}
         initial={reduceMotion ? false : { opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }}

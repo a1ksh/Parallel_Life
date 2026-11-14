@@ -28,6 +28,14 @@ class SessionRecord(Base):
     __mapper_args__ = {"version_id_col": revision}
 
 
+class AiUsageRecord(Base):
+    __tablename__ = "ai_usage"
+
+    bucket: Mapped[str] = mapped_column(String(80), primary_key=True)
+    window_start: Mapped[int]
+    calls: Mapped[int]
+
+
 def open_database(url: str | None = None):
     url = url or os.environ.get("DATABASE_URL") or "sqlite:///./parallel-life.sqlite"
     if url.startswith(("postgres://", "postgresql://")):

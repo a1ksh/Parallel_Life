@@ -41,11 +41,14 @@ for (const scenario of catalog) {
   Object.assign(scenario, decisionLab[scenario.id]);
   for (const path of scenario.paths) path.beats.push({ when: 'Year 3', ...aftermaths[scenario.id][path.id] });
 }
-const api = (await readFile(new URL('server/sites-api.js', root), 'utf8')).replace(/^import .*;\r?\n/, '');
+const source = async (file) => (await readFile(new URL(file, root), 'utf8')).replace(/^import .*;\r?\n/gm, '');
+const policy = JSON.parse(await readFile(new URL('backend/app/services/ai-policy.json', root), 'utf8'));
 const worker = `
 const catalog = ${JSON.stringify(catalog)};
 const opportunities = ${JSON.stringify(opportunities)};
-${api}
+const policy = ${JSON.stringify(policy)};
+${await source('server/ai.js')}
+${await source('server/sites-api.js')}
 const assets = new Map(${JSON.stringify(assets)});
 export default {
   async fetch(request, env) {

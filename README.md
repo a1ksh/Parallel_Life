@@ -26,6 +26,14 @@ Open `http://localhost:8000/` for English and `http://localhost:8000/legacy/` fo
 
 Copy `.env.example` to `.env` in the repository root to override settings. Supply `OPENAI_API_KEY` on the server and restart to enable live English NPC conversations and optional scene personalization. `OPENAI_MODEL` selects the model. Without a key or when the provider fails, the English game uses authored scenes and explicitly labels scripted NPC replies. The Kazakh legacy edition uses authored scenes and stores progress in the current browser.
 
+English AI settings (server only):
+
+- `OPENAI_API_KEY`: required for live generation. In Sites, configure it as a **runtime secret**. Never put it in frontend settings, source control, or browser storage.
+- `OPENAI_MODEL`: optional Responses API model with Structured Outputs support; defaults to `gpt-5.4-mini`.
+- `PARALLEL_LIFE_AI_ENABLED=0`: optional kill switch that keeps scripted play available even with a key configured.
+
+Provider calls time out after 8.5 seconds, with output limits of 420 tokens for chat and 650 for scene personalization. Chat and scene requests share database-backed budgets: 6 per guest per minute, 30 globally per minute, and 500 globally per UTC day. Quota and provider failures fall back to scripted play. These are request limits, not a billing cap. The hosted migration adds only a quota table; existing story data stays in place. Server usage logs contain request type, status, time and token counts when available, without prompts, replies, guest tokens or keys. NPC context includes the last three exchanges and up to four relevant excerpts from older player messages in the current timeline. Checkpoints inherit only what was known at the fork point. Generated scenes add prose, a reaction and an optional side vignette; authored choices, effects and endings remain authoritative.
+
 ## Deploy
 
 - **FastAPI and Supabase**. Deploy the repository Dockerfile with your Python-compatible host or use the Render Blueprint in `render.yaml`. Set `DATABASE_URL` to the Supabase session pooler URI with TLS enabled. Set the optional OpenAI variables in the service’s environment. The Docker image builds Next.js and serves it through FastAPI. `/api/status` reports API availability.

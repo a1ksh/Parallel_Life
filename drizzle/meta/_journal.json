@@ -2,6 +2,7 @@
   "version": "7",
   "dialect": "sqlite",
   "entries": [
-    { "idx": 0, "version": "6", "when": 1794657600000, "tag": "0000_universes", "breakpoints": true }
+    { "idx": 0, "version": "6", "when": 1794657600000, "tag": "0000_universes", "breakpoints": true },
+    { "idx": 1, "version": "6", "when": 1794657600001, "tag": "0001_ai_usage", "breakpoints": true }
   ]
 }

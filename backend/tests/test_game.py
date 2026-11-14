@@ -1,10 +1,14 @@
+import asyncio
+import json
 from uuid import uuid4
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.scenarios import CATALOG
+from app.services import ai_limits, story
 
 
 @pytest.fixture
@@ -131,3 +135,125 @@ def test_trust_unlocks_later_option(game_api):
     decide(client, session, no, 0, 1)
     lower_trust = decide(client, session, no, 1, 1)
     assert len(active(lower_trust)["scene"]["choices"]) == 2
+
+
+def test_hybrid_dialogue_uses_only_current_timeline_and_keeps_personality(game_api, monkeypatch):
+    client, token, url = game_api
+    session = start(client)
+    source = branch(client, session, path_id="business")["active_id"]
+    chat(client, session, source, 0, "emma", "The greenhouse customers matter most to me.")
+    for i in range(3):
+        chat(client, session, source, 0, "emma", f"Other topic {i}.")
+    decide(client, session, source, 0, 0)
+    chat(client, session, source, 1, "emma", "Source-only detail: blue ledger.")
+    captured = []
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only")
+    monkeypatch.setenv("PARALLEL_LIFE_AI_ENABLED", "1")
+
+    async def post(self, url, **kwargs):
+        assert url == story.PROVIDER_URL
+        assert kwargs["headers"]["Authorization"] == "Bearer test-only"
+        payload = kwargs["json"]
+        assert payload["store"] is False and payload["max_output_tokens"] == 420
+        assert payload["text"]["format"]["strict"] is True
+        captured.append(json.loads(payload["input"]))
+        return provider_response({"reply": "I want a partner, and I’d price the pilot before we commit."})
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    original = chat(client, session, source, 1, "emma", "What about the greenhouse customers?")
+    assert active(original)["npcs"]["emma"]["messages"][-1]["mode"] == "live"
+    fork = branch(client, session, parent_id=source, checkpoint=0)["active_id"]
+    forked = chat(client, session, fork, 0, "emma", "Do you remember the greenhouse?")
+    assert "price the pilot" in active(forked)["npcs"]["emma"]["messages"][-1]["text"]
+    before, after = captured
+    assert before["npc"] == after["npc"]
+    assert before["npc"]["name"] == "Emma Carter" and before["npc"]["goal"]
+    assert before["timeline"] == after["timeline"]
+    assert "greenhouse" in before["earlier_player_statements"][0]
+    assert "greenhouse" in after["earlier_player_statements"][0]
+    assert "blue ledger" in str(before["recent"]) and "blue ledger" not in str(after)
+    assert before["events"][0]["choice"] == "Offer a small paid pilot"
+    assert after["events"] == []
+    with TestClient(create_app(url, serve_frontend=False), headers={"X-Guest-Token": token}) as restarted:
+        reloaded = active(restarted.get(session).json())
+        assert reloaded["id"] == fork and reloaded["events"] == []
+        assert reloaded["npcs"]["emma"]["messages"][-1]["mode"] == "live"
+
+
+def provider_response(value=None, *, status="completed", refusal=False, http_status=200):
+    content = [{"type": "refusal", "refusal": "Unavailable"}] if refusal else [
+        {"type": "output_text", "text": json.dumps(value)}]
+    return httpx.Response(http_status, request=httpx.Request("POST", story.PROVIDER_URL),
+                         json={"status": status, "output": [{"type": "message", "content": content}],
+                               "usage": {"input_tokens": 50, "output_tokens": 25}})
+
+
+def test_scene_enhancement_validates_prose_and_leaves_state_intact(game_api, monkeypatch):
+    client, _, _ = game_api
+    session = start(client)
+    branch_id = branch(client, session, path_id="business")["active_id"]
+    initial = active(decide(client, session, branch_id, 0, 0))
+    scene = initial["scene"]
+    enhanced = {"title": "On the edge of a decision", "narrative": "Emma brings the pilot notes.",
+                "dialogue": "Emma: Let’s check the scope.", "reaction": "Emma nods at the pilot agreement.",
+                "side_event": "A neighboring shop opens for the morning."}
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only")
+    monkeypatch.setenv("PARALLEL_LIFE_AI_ENABLED", "1")
+    responses = iter([provider_response({**enhanced, "choices": []}), provider_response(enhanced)])
+
+    async def post(self, url, **kwargs):
+        request = kwargs["json"]
+        assert request["max_output_tokens"] == 650
+        context = json.loads(request["input"])
+        assert context["events"][0]["outcome"] == initial["events"][0]["outcome"]
+        assert "name" not in context["profile"]
+        return next(responses)
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    endpoint = f"{session}/branches/{branch_id}/scene"
+    invalid = client.post(endpoint).json()
+    assert "couldn’t respond" in invalid["ai_notice"]
+    assert active(invalid)["scene"] == scene
+    valid = active(client.post(endpoint).json())
+    assert valid["scene"]["personalized"]
+    assert valid["scene"]["side_event"] == enhanced["side_event"]
+    assert valid["scene"]["reaction"] == enhanced["reaction"]
+    assert valid["scene"]["choices"] == scene["choices"]
+    assert valid["events"] == initial["events"] and valid["world"] == initial["world"]
+    assert active(client.post(endpoint).json())["scene"] == valid["scene"]
+
+
+def test_provider_failures_and_rate_limits_keep_chat_playable(game_api, monkeypatch, caplog):
+    client, _, _ = game_api
+    session = start(client)
+    branch_id = branch(client, session, path_id="business")["active_id"]
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only")
+    monkeypatch.setenv("PARALLEL_LIFE_AI_ENABLED", "1")
+    monkeypatch.setitem(story.POLICY, "timeout_ms", 300)
+    monkeypatch.setattr(ai_limits.time, "time", lambda: 1800000000)
+    calls = 0
+    failures = iter([provider_response(http_status=503), provider_response(refusal=True),
+                     provider_response({"reply": "Not complete"}, status="incomplete"),
+                     provider_response({"reply": "a" * 721}), None, provider_response({"reply": ""})])
+
+    async def post(self, url, **kwargs):
+        nonlocal calls
+        calls += 1
+        response = next(failures)
+        if response is None:
+            await asyncio.sleep(1)
+        return response
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    with caplog.at_level("INFO", logger=story.logger.name):
+        for i in range(7):
+            game = chat(client, session, branch_id, 0, "emma", f"Private test statement {i}")
+            assert active(game)["npcs"]["emma"]["messages"][-1]["mode"] == "scripted"
+            assert ("usage limit" if i == 6 else "couldn’t respond") in game["ai_notice"]
+    assert calls == 6
+    assert "Private test statement" not in caplog.text
+    assert "result=timeout" in caplog.text and "result=http_503" in caplog.text
+    assert len(active(client.get(session).json())["npcs"]["emma"]["messages"]) == 14
+    monkeypatch.setenv("PARALLEL_LIFE_AI_ENABLED", "0")
+    assert client.get("/api/status").json()["ai"] is False
+    assert "ai_notice" not in chat(client, session, branch_id, 0, "emma", "One more scripted turn")

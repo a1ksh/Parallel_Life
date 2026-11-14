@@ -20,6 +20,7 @@ export type Scenario = {
 export type Scene = {
   index: number; count: number; title: string; body: string; when: string; location: string; npcs: string[];
   last_event: string | null; dialogue: string | null; personalized: boolean;
+  reaction?: string | null; side_event?: string | null;
   choices: { id: string; label: string; focus: string[] }[];
 };
 export type Message = { role: "player" | "npc"; text: string; mode?: "scripted" | "live" };
@@ -40,6 +41,7 @@ export type Experiment = { checked: number[]; status: "active" | "completed" | "
 export type Game = {
   id: string; profile: Profile; scenario_id: Category; active_id: string | null; branches: Branch[];
   endings: Ending[]; passport: Passport | null; experiment: Experiment;
+  ai_notice?: string;
 };
 export type Universe = Pick<Game, "id" | "scenario_id" | "profile"> & { branches: number; completed: number };
 export type View = "home" | "onboarding" | "scenarios" | "story" | "map" | "compare" | "lab" | "bridge" | "universes";

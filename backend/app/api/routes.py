@@ -11,10 +11,11 @@ from app.game_engine import GameError, add_branch, choose, comparisons, current_
 from app.models.database import ProfileRecord, SessionRecord, owner_hash
 from app.models.schemas import (
     ActionExperiment, ChatInput, ConversationMessage, DecisionPassport, GameSession,
-    NPCMemory, PlayerChoice, PlayerProfile, StartBranch, StartSession,
+    PlayerChoice, PlayerProfile, StartBranch, StartSession,
 )
 from app.scenarios import CATALOG, SCENARIOS
-from app.services.story import model_enabled, npc_reply, personalize_scene
+from app.services.ai_limits import model_enabled, reserve_ai
+from app.services.story import NOTICES, generate, npc_reply, scene_context
 
 router = APIRouter(prefix="/api")
 
@@ -44,14 +45,14 @@ def load_game(db: Session, session_id: str, guest: str):
     return record, GameSession.model_validate(record.data)
 
 
-def commit(db: Session, record: SessionRecord, game: GameSession):
+def commit(db: Session, record: SessionRecord, game: GameSession, notice: str | None = None):
     record.data = game.model_dump(mode="json")
     try:
         db.commit()
     except StaleDataError as error:
         db.rollback()
         raise HTTPException(409, "The universe changed in another request. Reload and try again.") from error
-    return view(game)
+    return view(game, notice)
 
 
 def mutate(operation: Callable, *args):
@@ -78,21 +79,24 @@ def scene_view(game: GameSession, branch):
             "count": len(path_for(game, branch)["beats"]),
             "title": narration.get("title", scene["title"]), "body": narration.get("narrative", scene["body"]),
             "dialogue": narration.get("dialogue"), "personalized": bool(narration),
+            "reaction": narration.get("reaction"), "side_event": narration.get("side_event"),
             "choices": [{"id": str(i), "label": option[0], "focus": list(option[1])}
                         for i, option in enumerate(scene["choices"])]}
 
 
-def view(game: GameSession):
+def view(game: GameSession, notice: str | None = None):
     data = game.model_dump(exclude={"branches"})
     data["branches"] = []
     for branch in game.branches.values():
         summary = branch.model_dump(exclude={"checkpoints", "narration", "npcs"})
         summary["checkpoints"] = len(branch.checkpoints)
         if branch.id == game.active_id:
-            summary["npcs"] = {key: state.model_dump() for key, state in branch.npcs.items()}
+            summary["npcs"] = {key: state.model_dump(exclude={"memories"}) for key, state in branch.npcs.items()}
             summary["scene"] = scene_view(game, branch)
         data["branches"].append(summary)
     data["endings"] = comparisons(game)
+    if notice:
+        data["ai_notice"] = NOTICES[notice]
     return data
 
 
@@ -193,13 +197,22 @@ async def branch_narrate(session_id: str, branch_id: str, db: DB, guest: Owner):
     record, game = load_game(db, session_id, guest)
     branch = get_branch(game, branch_id)
     scene = current_scene(game, branch)
-    if scene is None or str(scene["index"]) in branch.narration or not model_enabled():
+    if scene is None or str(scene["index"]) in branch.narration:
         return view(game)
-    npc_context = [npc for npc in SCENARIOS[game.scenario_id]["npcs"] if npc["id"] in scene["npcs"]]
-    generated = await personalize_scene(scene, game.profile.model_dump(exclude={"id"}),
-                                        branch.world.model_dump(), npc_context)
+    scenario = SCENARIOS[game.scenario_id]
+    npc_context = [{**npc, "trust": branch.npcs[npc["id"]].trust}
+                   for npc in scenario["npcs"] if npc["id"] in scene["npcs"]]
+    generated, reason = await generate("scene", {
+        "scene": scene_context(scene),
+        "timeline": {"scenario": scenario["title"], "path": path_for(game, branch)["title"]},
+        "profile": game.profile.model_dump(include={"age", "goal", "values", "traits"}),
+        "events": [event.model_dump(include={"choice", "outcome"}) for event in branch.events],
+        "npcs": npc_context,
+    }, reserve_ai(db, guest))
     if generated is None:
-        return view(game)
+        return view(game, reason)
+    if not branch.events:
+        generated["reaction"] = ""
     branch.narration[str(scene["index"])] = generated
     return commit(db, record, game)
 
@@ -215,21 +228,21 @@ async def branch_chat(session_id: str, branch_id: str, npc_id: str, payload: Cha
     state = branch.npcs[npc_id]
     if len(state.messages) >= 32:
         raise HTTPException(409, "This character has reached the conversation limit for this timeline.")
-    beats = path_for(game, branch)["beats"]
-    events = [event.outcome for index, event in enumerate(branch.events) if npc_id in beats[index]["npcs"]]
-    reply, mode = await npc_reply(npc, state, scene, events, payload.text)
+    path = path_for(game, branch)
+    events = [event.model_dump(include={"choice", "outcome"}) for index, event in enumerate(branch.events)
+              if npc_id in path["beats"][index]["npcs"]]
+    timeline = {"scenario": SCENARIOS[game.scenario_id]["title"], "path": path["title"]}
+    # Only pass witnessed outcomes to the NPC; the scene's previous event may have happened without them.
+    reply, mode, reason = await npc_reply(npc, state, {**scene, "last_event": None}, events, payload.text,
+                                         timeline, reserve_ai(db, guest))
     state.messages.extend([ConversationMessage(role="player", text=payload.text),
                            ConversationMessage(role="npc", text=reply, mode=mode)])
-    # Preserve compact notes as older turns leave the context window.
-    if len(state.messages) > 6:
-        older = state.messages[-8]
-        state.memories = [*state.memories[-3:], NPCMemory(note=f"You and the player discussed: {older.text[:110]}")]
     if sum(message.role == "player" for message in state.messages) <= 6:
         state.trust = min(100, state.trust + 1)
     # Trust can unlock an extra choice, invalidating narration generated for the earlier option set.
     if len(current_scene(game, branch)["choices"]) != len(scene["choices"]):
         branch.narration.pop(str(scene["index"]), None)
-    return commit(db, record, game)
+    return commit(db, record, game, reason if reason != "disabled" else None)
 
 
 @router.get("/sessions/{session_id}/comparison")

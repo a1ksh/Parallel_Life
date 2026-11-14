@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS ai_usage (
+    bucket TEXT PRIMARY KEY NOT NULL,
+    window_start INTEGER NOT NULL,
+    calls INTEGER NOT NULL
+);

@@ -7,6 +7,7 @@ import worker from '../dist/server/index.js';
 function testDatabase() {
   const sql = new DatabaseSync(':memory:');
   sql.exec(readFileSync(new URL('../drizzle/0000_universes.sql', import.meta.url), 'utf8'));
+  sql.exec(readFileSync(new URL('../drizzle/0001_ai_usage.sql', import.meta.url), 'utf8'));
   const adapter = {
     prepare(query) {
       return {
@@ -94,6 +95,8 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
         { role: 'npc', text: 'Let’s price the work before we promise it.', mode: 'live' });
       assert.deepEqual(providerContext.recent.filter(({ role }) => role === 'player').map(({ text }) => text), ['What is your goal?']);
       assert.deepEqual(providerContext.events, []);
+      assert.equal(providerContext.npc.name, 'Emma Carter');
+      assert.equal(providerContext.timeline.path, 'Build Your Own Business');
     } finally {
       delete env.OPENAI_API_KEY;
       globalThis.fetch = realFetch;
@@ -121,6 +124,77 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     assert.deepEqual(await call('/api/sessions'), []);
     assert.deepEqual(await call('/api/profiles'), []);
   } finally {
+    db.close();
+  }
+});
+
+test('the Worker accepts only bounded prose and falls back after a provider error or exhausted shared budget', async () => {
+  const db = testDatabase();
+  const env = { DB: db.adapter, OPENAI_API_KEY: 'test-only' };
+  const realFetch = globalThis.fetch;
+  const guest = crypto.randomUUID();
+  const calls = [];
+  async function call(path, body, status = 200) {
+    const response = await worker.fetch(new Request('https://parallel.example' + path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'X-Guest-Token': guest },
+      body: JSON.stringify(body),
+    }), env);
+    assert.equal(response.status, status, await response.clone().text());
+    return response.json();
+  }
+  const sceneText = { title: 'An offer on the table', narrative: 'Emma looks over the proposal.',
+    dialogue: 'Emma: Let’s make the scope clear.', reaction: '', side_event: 'Rain starts against the window.' };
+  const outputs = [
+    () => new Response(null, { status: 503 }),
+    () => providerText({ ...sceneText, world: { finances: 100 } }),
+    () => providerText(sceneText),
+    () => providerText({ reply: 'I’d start with one customer.' }),
+  ];
+  function providerText(value) {
+    return Response.json({ status: 'completed', output: [{ type: 'message',
+      content: [{ type: 'output_text', text: JSON.stringify(value) }] }] });
+  }
+  globalThis.fetch = async (url, request) => {
+    assert.equal(url, 'https://api.openai.com/v1/responses');
+    calls.push(JSON.parse(request.body));
+    return outputs.shift()();
+  };
+  try {
+    const profile = await call('/api/profiles', {
+      name: 'Fictional avatar', age: 29, avatar: 'dawn', goal: 'Keep a clear scope', situation: 'At work', category: 'career',
+    }, 201);
+    const game = await call('/api/sessions', { profile_id: profile.id, scenario_id: 'career' }, 201);
+    const session = `/api/sessions/${game.id}`;
+    const started = await call(session + '/branches', { path_id: 'business' });
+    const path = `${session}/branches/${started.active_id}`;
+    const npc = path + '/npcs/emma/messages';
+    const initial = started.branches[0];
+    const failed = await call(npc, { scene_index: 0, text: 'What do you think?' });
+    assert.match(failed.ai_notice, /couldn’t respond/);
+    assert.equal(failed.branches[0].npcs.emma.messages.at(-1).mode, 'scripted');
+    const rejected = await call(path + '/scene', {});
+    assert.deepEqual(rejected.branches[0].scene, initial.scene);
+    assert.deepEqual(rejected.branches[0].world, initial.world);
+    const enhanced = await call(path + '/scene', {});
+    assert.equal(enhanced.branches[0].scene.side_event, sceneText.side_event);
+    assert.deepEqual(enhanced.branches[0].scene.choices, initial.scene.choices);
+    assert.deepEqual(enhanced.branches[0].events, []);
+    assert.deepEqual(enhanced.branches[0].world, initial.world);
+    assert.equal((await call(npc, { scene_index: 0, text: 'What is the first step?' }))
+      .branches[0].npcs.emma.messages.at(-1).mode, 'live');
+    assert.deepEqual(calls.map((request) => request.max_output_tokens), [420, 650, 650, 420]);
+    assert.equal(JSON.parse(calls[3].input).recent[0].text, 'What do you think?');
+    assert.ok(calls.every((request) => request.store === false && request.text.format.strict));
+    db.sql.prepare("UPDATE ai_usage SET calls = 500 WHERE bucket = 'global:day'").run();
+    const capped = await call(npc, { scene_index: 0, text: 'Can I still play?' });
+    assert.match(capped.ai_notice, /usage limit/);
+    assert.equal(capped.branches[0].npcs.emma.messages.at(-1).mode, 'scripted');
+    assert.equal(calls.length, 4);
+    assert.equal(db.sql.prepare("SELECT calls FROM ai_usage WHERE bucket LIKE 'guest:%'").get().calls, 4);
+    assert.equal((await call(session)).branches[0].npcs.emma.messages.length, 6);
+  } finally {
+    globalThis.fetch = realFetch;
     db.close();
   }
 });

@@ -112,24 +112,3 @@ class PlayerChoice(BaseModel):
 class ChatInput(BaseModel):
     text: MessageText
     scene_index: int = Field(ge=0, le=4)
-
-
-class ProposedEffect(BaseModel):
-    choice_id: str
-    field: str
-    delta: int = Field(ge=-20, le=20)
-
-
-class GeneratedScene(BaseModel):
-    title: ShortText
-    narrative: Annotated[str, StringConstraints(min_length=1, max_length=1400)]
-    location: ShortText
-    npc_ids: list[str] = Field(min_length=1, max_length=3)
-    decisions: list[str] = Field(min_length=2, max_length=3)
-    proposed_effects: list[ProposedEffect] = Field(max_length=12)
-    references: list[str] = Field(max_length=4)
-    dialogue: str = Field(max_length=420)
-
-
-class GeneratedReply(BaseModel):
-    reply: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=720)]
