@@ -337,6 +337,10 @@ async function gameRoute(request, env, owner, id, tail) {
       if (![outcome, surprise, priority].every((text) => validText(text, 500))) fail(422, 'Check your experiment reflection.');
       next.reflection = { outcome: outcome.trim(), surprise: surprise.trim(), priority: priority.trim() };
     }
+    if (input.personal_1490_interest != null) {
+      if (!['interested', 'declined'].includes(input.personal_1490_interest)) fail(422, 'Choose an interest response.');
+      next.personal_1490_interest = input.personal_1490_interest;
+    }
     if (input.pass_offer != null && input.pass_interest == null) fail(422, 'An offer requires an interest response.');
     if (input.pass_interest != null) {
       if (!['interested', 'declined'].includes(input.pass_interest)) fail(422, 'Choose an interest response.');

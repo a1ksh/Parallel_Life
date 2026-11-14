@@ -135,6 +135,7 @@ class ActionExperiment(BaseModel):
     status: Literal["active", "completed", "skipped"] = "active"
     plan: ExperimentPlan | None = None
     reflection: ExperimentReflection | None = None
+    personal_1490_interest: Literal["interested", "declined"] | None = None
     pass_offer: Literal["KZT_1490"] | None = None
     pass_interest: Literal["interested", "declined"] | None = None
 

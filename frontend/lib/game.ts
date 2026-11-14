@@ -52,6 +52,7 @@ export type Experiment = {
   checked: number[]; status: "active" | "completed" | "skipped";
   plan?: { action: string; deadline: string; signal: string } | null;
   reflection?: { outcome: string; surprise: string; priority: string } | null;
+  personal_1490_interest?: "interested" | "declined" | null;
   pass_offer?: "KZT_1490" | null;
   pass_interest?: "interested" | "declined" | null;
 };

@@ -273,20 +273,26 @@ function WorldState({ branch }: { branch: Branch }) {
     </div>)}</div></details>;
 }
 
-function Story({ game, scenario, start, choose, send, open, narrate }: {
+function Story({ game, scenario, start, replay, choose, send, open, narrate }: {
   game: Game; scenario: Scenario; start: (id: string) => void; choose: (id: string, index: number) => void;
-  send: (npc: string, text: string) => Promise<boolean>; open: (view: View) => void; narrate: () => void;
+  replay: (id: string) => void; send: (npc: string, text: string) => Promise<boolean>; open: (view: View) => void; narrate: () => void;
 }) {
   const { t } = useTranslation();
   const { busy, ai } = useGame();
   const branch = game.branches.find((item) => item.id === game.active_id);
   const scene = branch?.scene;
   const ending = game.endings.find((item) => item.id === branch?.id);
+  const previousChoice = branch?.parent_id && scene ? game.branches.find(item => item.id === branch.parent_id)?.events[scene.index] : undefined;
   if (ending) return <section className="story-page">
     <StartHeader eyebrow={t("Year 3 · Timeline complete")} title={t("One possible life")} />
     <ChoiceResult event={ending.events.at(-1)} scenario={scenario} />
     <Outcome ending={{ ...ending, aftermath: null }} />
-    <div className="actions"><Button onClick={() => open("compare")}>{t("Compare timelines")}</Button>
+    {game.endings.length === 1 && ending.events[0] && <section className="panel form-grid">
+      <h2>{t("What if your first decision had been different?")}</h2>
+      <p>{t("Your first choice was “{choice}”. Keep this ending and try another answer. Then compare what each life cost you and ask your other self why.", { choice: ending.events[0].choice })}</p>
+      <Button disabled={busy} onClick={() => replay(ending.id)}><GitFork size={16} />{t("Try a different first decision")}</Button>
+    </section>}
+    <div className="actions">{game.endings.length > 1 && <Button onClick={() => open("compare")}>{t("Compare timelines")}</Button>}
       <Button variant="outline" onClick={() => open("map")}>{t("Explore another life")} <GitFork size={16} /></Button>
       <Button variant="ghost" onClick={() => open("lab")}>{t("Open Decision Lab")}</Button></div>
   </section>;
@@ -314,6 +320,7 @@ function Story({ game, scenario, start, choose, send, open, narrate }: {
         {scene.choices.some(option => option.effects) && <p>{t("Arrows show what each choice changes in this story.")}</p>}</div>
       <div className="choice-list decision-options">{scene.choices.map((option) => <Button key={option.id} className="choice" variant="outline"
         disabled={busy} onClick={() => choose(option.id, scene.index)}><span><strong>{option.label}</strong>
+          {previousChoice && (previousChoice.choice_id === option.id || previousChoice.choice === option.label) && <small>{t("Your choice in the original timeline")}</small>}
           {option.effects ? <ChoiceEffects effects={option.effects} scenario={scenario} /> :
             <small>{option.focus.map(key => t(metrics[key as keyof typeof metrics] ?? "Character trust")).filter((item, i, all) => all.indexOf(item) === i).join(" · ")}</small>}
         </span><ArrowRight size={17} /></Button>)}</div>
@@ -699,6 +706,7 @@ function GameInterface({ switchLocale }: { switchLocale: (locale: Locale) => voi
       }
       switch (view) {
         case "story": content = <Story game={game} scenario={scenario} open={open}
+          replay={(id) => { void mutation("/branches", "POST", { parent_id: id, checkpoint: 0 }, "story"); }}
           start={(id) => { void mutation("/branches", "POST", { path_id: id }, "story"); }}
           choose={(id, index) => { void mutation(`${branchPath}/choices`, "POST", { choice_id: id, scene_index: index }, "story"); }}
           send={(npc, text) => mutation(`${branchPath}/npcs/${npc}/messages`, "POST", {

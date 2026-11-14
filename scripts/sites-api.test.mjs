@@ -189,7 +189,9 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     await call(session + '/experiment', 'PUT', { plan });
     await call(session + '/experiment', 'PUT', { reflection, status: 'completed' });
     await call(session + '/experiment', 'PUT', { pass_interest: 'declined', pass_offer: 'KZT_1490' });
-    assert.deepEqual((await call(session)).experiment, { checked: [0], status: 'completed', plan, reflection, pass_interest: 'declined', pass_offer: 'KZT_1490' });
+    await call(session + '/experiment', 'PUT', { personal_1490_interest: 'invalid' }, 422);
+    await call(session + '/experiment', 'PUT', { personal_1490_interest: 'interested' });
+    assert.deepEqual((await call(session)).experiment, { checked: [0], status: 'completed', plan, reflection, personal_1490_interest: 'interested', pass_interest: 'declined', pass_offer: 'KZT_1490' });
     await call(session, 'DELETE', undefined, 204);
     assert.deepEqual(await call('/api/sessions'), []);
     assert.deepEqual(await call('/api/profiles'), []);

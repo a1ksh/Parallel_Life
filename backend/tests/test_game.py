@@ -132,9 +132,11 @@ def test_reflection_experiment_and_deletion(game_api):
     assert client.put(endpoint, json={"reflection": notes, "status": "completed"}).status_code == 200
     assert client.put(endpoint, json={"pass_interest": "interested"}).json()["experiment"]["pass_offer"] is None
     assert client.put(endpoint, json={"pass_interest": "interested", "pass_offer": "KZT_1490"}).status_code == 200
+    assert client.put(endpoint, json={"personal_1490_interest": "invalid"}).status_code == 422
+    assert client.put(endpoint, json={"personal_1490_interest": "declined"}).status_code == 200
     saved = client.get(session).json()
     assert saved["experiment"] == {"plan": plan, "reflection": notes, "status": "completed",
-                                   "checked": [0, 2], "pass_interest": "interested", "pass_offer": "KZT_1490"}
+                                   "checked": [0, 2], "personal_1490_interest": "declined", "pass_interest": "interested", "pass_offer": "KZT_1490"}
     assert saved["passport"] == passport.json()["passport"]
     assert client.delete(session).status_code == 204
     assert client.get(session).status_code == 404
