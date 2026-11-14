@@ -58,6 +58,7 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
       assert.ok(localized.includes(headline));
       assert.ok(localized.includes(`<html lang="${locale}"`));
       assert.deepEqual(structure(localized), structure(landing));
+      for (const [, asset] of localized.matchAll(/src="(\/_next\/[^"]+\.js)"/g)) assert.ok((await call(asset)).length > 100, asset);
     }
     const chunk = landing.match(/src="(\/_next\/[^"]+\.js)"/)[1];
     assert.ok((await call(chunk)).length > 100);

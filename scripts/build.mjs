@@ -62,8 +62,12 @@ export default {
     if (pathname.startsWith('/api/')) return handleApi(request, env, pathname);
     if (pathname === '/legacy') return new Response(null, { status: 308, headers: { Location: '/legacy/' } });
     if (pathname === '/legacy/api/status') return Response.json({ ai: false, character: false });
-    const asset = assets.get(pathname.endsWith('/') ? pathname + 'index.html' : pathname) ??
-      (['/en', '/kk', '/ru'].includes(pathname) ? assets.get(pathname + '/index.html') : undefined);
+    // Next percent-encodes bracketed segments in emitted JS and static export asset URLs.
+    let assetPath;
+    try { assetPath = decodeURIComponent(pathname); }
+    catch { return new Response('Not found', { status: 404 }); }
+    const asset = assets.get(assetPath.endsWith('/') ? assetPath + 'index.html' : assetPath) ??
+      (['/en', '/kk', '/ru'].includes(assetPath) ? assets.get(assetPath + '/index.html') : undefined);
     if (!asset) return new Response('Not found', { status: 404 });
     if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 });
     const body = request.method === 'HEAD' ? null : new Blob([
