@@ -11,11 +11,12 @@ from app.game_engine import GameError, add_branch, choose, comparisons, current_
 from app.models.database import ProfileRecord, SessionRecord, owner_hash
 from app.models.schemas import (
     ActionExperiment, ChatInput, ConversationMessage, DecisionPassport, GameSession,
-    PlayerChoice, PlayerProfile, StartBranch, StartSession,
+    NarrateInput, PlayerChoice, PlayerProfile, StartBranch, StartSession,
 )
 from app.scenarios import CATALOG, SCENARIOS
 from app.services.ai_limits import model_enabled, reserve_ai
 from app.services.story import NOTICES, generate, npc_reply, scene_context
+from app.services.locales import narration_variants
 
 router = APIRouter(prefix="/api")
 
@@ -74,10 +75,12 @@ def scene_view(game: GameSession, branch):
     if scene is None:
         return None
     index = scene["index"]
-    narration = branch.narration.get(str(index), {})
+    variants = narration_variants(branch.narration.get(str(index), {}))
+    narration = variants.get("en", {})
     return {**{key: scene[key] for key in ("index", "when", "location", "npcs", "last_event")},
             "count": len(path_for(game, branch)["beats"]),
             "title": narration.get("title", scene["title"]), "body": narration.get("narrative", scene["body"]),
+            "authored_title": scene["title"], "authored_body": scene["body"], "variants": variants,
             "dialogue": narration.get("dialogue"), "personalized": bool(narration),
             "reaction": narration.get("reaction"), "side_event": narration.get("side_event"),
             "choices": [{"id": str(i), "label": option[0], "focus": list(option[1])}
@@ -193,27 +196,39 @@ def branch_choose(session_id: str, branch_id: str, payload: PlayerChoice, db: DB
 
 
 @router.post("/sessions/{session_id}/branches/{branch_id}/scene")
-async def branch_narrate(session_id: str, branch_id: str, db: DB, guest: Owner):
+async def branch_narrate(session_id: str, branch_id: str, db: DB, guest: Owner, payload: NarrateInput | None = None):
     record, game = load_game(db, session_id, guest)
     branch = get_branch(game, branch_id)
     scene = current_scene(game, branch)
-    if scene is None or str(scene["index"]) in branch.narration:
+    if scene is None:
         return view(game)
+    locale = payload.locale if payload else "en"
+    index = str(scene["index"])
+    variants = narration_variants(branch.narration.get(index, {}))
+    if locale in variants:
+        return view(game)
+    source = next(iter(variants.values()), None)
     scenario = SCENARIOS[game.scenario_id]
     npc_context = [{**npc, "trust": branch.npcs[npc["id"]].trust}
                    for npc in scenario["npcs"] if npc["id"] in scene["npcs"]]
-    generated, reason = await generate("scene", {
+    context = {
         "scene": scene_context(scene),
         "timeline": {"scenario": scenario["title"], "path": path_for(game, branch)["title"]},
         "profile": game.profile.model_dump(include={"age", "goal", "values", "traits"}),
         "events": [event.model_dump(include={"choice", "outcome"}) for event in branch.events],
         "npcs": npc_context,
-    }, reserve_ai(db, guest))
+    }
+    generated, reason = await generate("scene", {"prose": source} if source else context,
+                                       reserve_ai(db, guest), locale, translate=bool(source))
     if generated is None:
         return view(game, reason)
     if not branch.events:
         generated["reaction"] = ""
-    branch.narration[str(scene["index"])] = generated
+    if source:
+        for field in ("dialogue", "reaction", "side_event"):
+            if not source.get(field):
+                generated[field] = ""
+    branch.narration[index] = {**variants, locale: generated}
     return commit(db, record, game)
 
 
@@ -234,9 +249,9 @@ async def branch_chat(session_id: str, branch_id: str, npc_id: str, payload: Cha
     timeline = {"scenario": SCENARIOS[game.scenario_id]["title"], "path": path["title"]}
     # Only pass witnessed outcomes to the NPC; the scene's previous event may have happened without them.
     reply, mode, reason = await npc_reply(npc, state, {**scene, "last_event": None}, events, payload.text,
-                                         timeline, reserve_ai(db, guest))
-    state.messages.extend([ConversationMessage(role="player", text=payload.text),
-                           ConversationMessage(role="npc", text=reply, mode=mode)])
+                                         timeline, reserve_ai(db, guest), payload.locale)
+    state.messages.extend([ConversationMessage(role="player", text=payload.text, locale=payload.locale),
+                           ConversationMessage(role="npc", text=reply, mode=mode, locale=payload.locale)])
     if sum(message.role == "player" for message in state.messages) <= 6:
         state.trust = min(100, state.trust + 1)
     # Trust can unlock an extra choice, invalidating narration generated for the earlier option set.

@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from typing_extensions import Annotated
 
 ScenarioId = Literal["career", "education", "relationships"]
+Locale = Literal["en", "kk", "ru"]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 MessageText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=600)]
 
@@ -43,6 +44,7 @@ class ConversationMessage(BaseModel):
     role: Literal["player", "npc"]
     text: str
     mode: Literal["scripted", "live"] | None = None
+    locale: Locale = "en"
 
 
 class NPCMemory(BaseModel):
@@ -109,6 +111,10 @@ class PlayerChoice(BaseModel):
     scene_index: int = Field(ge=0, le=4)
 
 
-class ChatInput(BaseModel):
+class NarrateInput(BaseModel):
+    locale: Locale = "en"
+
+
+class ChatInput(NarrateInput):
     text: MessageText
     scene_index: int = Field(ge=0, le=4)

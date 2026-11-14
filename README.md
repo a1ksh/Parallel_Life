@@ -22,17 +22,23 @@ cd backend
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://localhost:8000/` for English and `http://localhost:8000/legacy/` for Kazakh. Use the same hostname and port to resume an earlier browser save. FastAPI serves both games and the REST API from the same origin. API documentation is at `/docs`. The tables are created at startup. SQLite is the local default.
+Open `http://localhost:8000/` for the unified game (English by default, then the saved preference). Direct links are `/en`, `/kk`, and `/ru`. The language switcher keeps the current view and active timeline mounted. Use the same hostname and port to resume an earlier browser save. FastAPI serves the game and REST API from the same origin. API documentation is at `/docs`. The tables are created at startup. SQLite is the local default.
 
-Copy `.env.example` to `.env` in the repository root to override settings. Supply `OPENAI_API_KEY` on the server and restart to enable live English NPC conversations and optional scene personalization. `OPENAI_MODEL` selects the model. Without a key or when the provider fails, the English game uses authored scenes and explicitly labels scripted NPC replies. The Kazakh legacy edition uses authored scenes and stores progress in the current browser.
+Copy `.env.example` to `.env` in the repository root to override settings. Supply `OPENAI_API_KEY` on the server and restart to enable live NPC conversations and optional scene personalization in all three locales. Without a key or when the provider fails, all three locales use authored scenes and label scripted NPC replies. Previous messages stay in their original language. When a generated scene has no rendition in the new locale, the game shows the localized authored beat and offers to translate the existing AI prose if the provider is enabled. Translation is cached per scene and locale; it never changes choices or outcomes.
 
-English AI settings (server only):
+AI settings (server only):
 
 - `OPENAI_API_KEY`: required for live generation. In Sites, configure it as a **runtime secret**. Never put it in frontend settings, source control, or browser storage.
 - `OPENAI_MODEL`: optional Responses API model with Structured Outputs support; defaults to `gpt-5.4-mini`.
 - `PARALLEL_LIFE_AI_ENABLED=0`: optional kill switch that keeps scripted play available even with a key configured.
 
 Provider calls time out after 8.5 seconds, with output limits of 420 tokens for chat and 650 for scene personalization. Chat and scene requests share database-backed budgets: 6 per guest per minute, 30 globally per minute, and 500 globally per UTC day. Quota and provider failures fall back to scripted play. These are request limits, not a billing cap. The hosted migration adds only a quota table; existing story data stays in place. Server usage logs contain request type, status, time and token counts when available, without prompts, replies, guest tokens or keys. NPC context includes the last three exchanges and up to four relevant excerpts from older player messages in the current timeline. Checkpoints inherit only what was known at the fork point. Generated scenes add prose, a reaction and an optional side vignette; authored choices, effects and endings remain authoritative.
+
+## Saves and localization
+
+The modern game uses the same guest token, database records, scenario and path IDs, choice indices, and ending indices in every locale. Translation is a display step; do not edit canonical English text without updating the matching keys in `backend/app/scenarios/kk.json` and `ru.json`. UI messages live in `frontend/messages/ui.json`. Player text is kept verbatim. Previously saved AI prose and chat messages without language metadata are treated as English.
+
+`/legacy/` remains a separate archive linked to the new `/kk` game. It continues to read and write its original `parallel-life-v1` browser save. Its scenarios `career`, `study`, and `relationship` have legacy-only paths (`launch/pilot/stay`, `abroad/local`, and `together/apart`) and a two-decision story. Canonical IDs are `career`, `education`, and `relationships`, with three paths and five decision scenes per path. Even overlapping names such as `abroad` and `local` represent different decisions. No verified mapping exists from the 14 legacy endings to the 18 canonical endings, so no automatic migration is performed.
 
 ## Deploy
 

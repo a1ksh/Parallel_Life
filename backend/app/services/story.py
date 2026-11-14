@@ -11,6 +11,7 @@ from typing_extensions import Annotated
 
 from app.models.schemas import NPCState
 from app.services.ai_limits import POLICY
+from app.services.locales import LOCALES, authored
 
 logger = logging.getLogger("uvicorn.error.parallel_life.ai")
 PROVIDER_URL = "https://api.openai.com/v1/responses"
@@ -36,16 +37,18 @@ def scene_context(scene: dict) -> dict:
 
 
 def conversation_context(state: NPCState, latest: str) -> dict:
-    recent = [message.model_dump(include={"role", "text"}) for message in state.messages[-6:]]
-    older = [(index, item.text) for index, item in enumerate(state.messages[:-6]) if item.role == "player"]
-    terms = set(re.findall(r"[a-z0-9]{4,}", latest.lower()))
+    recent = [message.model_dump(include={"role", "text", "locale"}) for message in state.messages[-6:]]
+    older = [(index, item.text, item.locale) for index, item in enumerate(state.messages[:-6]) if item.role == "player"]
+    terms = set(re.findall(r"[^\W_]{4,}", latest.lower()))
     ranked = sorted(older, key=lambda turn: (
-        len(terms.intersection(re.findall(r"[a-z0-9]{4,}", turn[1].lower()))), turn[0]
+        len(terms.intersection(re.findall(r"[^\W_]{4,}", turn[1].lower()))), turn[0]
     ), reverse=True)[:4]
-    return {"recent": recent, "earlier_player_statements": [text[:160] for _, text in sorted(ranked)]}
+    return {"recent": recent, "earlier_player_statements": [
+        {"text": text[:160], "locale": locale} for _, text, locale in sorted(ranked)]}
 
 
-async def generate(kind: str, context: dict, blocked: str | None) -> tuple[dict | None, str | None]:
+async def generate(kind: str, context: dict, blocked: str | None, locale: str = "en",
+                   translate: bool = False) -> tuple[dict | None, str | None]:
     if blocked:
         logger.info("ai kind=%s result=%s", kind, blocked)
         return None, blocked
@@ -60,7 +63,9 @@ async def generate(kind: str, context: dict, blocked: str | None) -> tuple[dict 
               "required": list(model_type.model_fields)}
     payload = {
         "model": model, "store": False, "max_output_tokens": POLICY["outputs"][kind]["tokens"],
-        "instructions": f'{POLICY["base_rules"]} {POLICY["instructions"][kind]}',
+        "instructions": f'{POLICY["base_rules"]} Write all output in {LOCALES[locale]["language"]}. '
+                        f'Conversation history can be multilingual. '
+                        f'{POLICY["translation"] if translate else POLICY["instructions"][kind]}',
         "input": json.dumps(context, ensure_ascii=False),
         "text": {"format": {"type": "json_schema", "name": kind, "strict": True, "schema": schema}},
     }
@@ -97,23 +102,25 @@ async def generate(kind: str, context: dict, blocked: str | None) -> tuple[dict 
 
 
 async def npc_reply(npc: dict, state: NPCState, scene: dict, events: list[dict], player: str,
-                    timeline: dict, blocked: str | None):
+                    timeline: dict, blocked: str | None, locale: str = "en"):
     context = conversation_context(state, player)
     generated, reason = await generate("npc_reply", {
         "npc": npc, "trust": state.trust, "timeline": timeline, "scene": scene_context(scene),
         "events": events, **context, "text": player,
-    }, blocked)
+    }, blocked, locale)
     if generated:
         return generated["reply"], "live", None
-    outcome = events[-1]["outcome"] if events else None
-    if re.search(r"\b(remember|earlier|before|last time)\b", player, re.I):
+    ui = LOCALES[locale]
+    outcome = authored(locale, events[-1]["outcome"]) if events else None
+    support = authored(locale, npc["support"])
+    if re.search(ui["recall"], player, re.I):
         previous = next((item.text for item in reversed(state.messages) if item.role == "player"), None)
         if previous:
-            return f"I remember your earlier message: “{previous[:120]}” {outcome or npc['support']}", "scripted", reason
+            return ui["earlier"].format(message=previous[:120], followup=outcome or support), "scripted", reason
         if outcome:
-            return f"Here’s what I remember from this part of the story: {outcome} {npc['support']}", "scripted", reason
-    if re.search(r"\b(your goal|your plans?|what (do|did) you (want|need)|why are you)\b", player, re.I):
-        return f"What I’m working toward is simple: {npc['goal'][0].lower()}{npc['goal'][1:]} {npc['support']}", "scripted", reason
+            return ui["witnessed"].format(event=outcome, support=support), "scripted", reason
+    if re.search(ui["goal"], player, re.I):
+        return ui["motivation"].format(goal=authored(locale, npc["goal"]), support=support), "scripted", reason
     if outcome and not state.messages:
-        return f"{outcome} {npc['support']}", "scripted", reason
-    return npc["support"] if state.trust >= 65 or state.messages else npc["voice"], "scripted", reason
+        return f"{outcome} {support}", "scripted", reason
+    return support if state.trust >= 65 or state.messages else authored(locale, npc["voice"]), "scripted", reason

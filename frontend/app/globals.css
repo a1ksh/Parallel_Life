@@ -31,7 +31,9 @@
 .topbar-inner { min-height: 71px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .topbar nav, .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .topbar nav { justify-content: flex-end; }
-.topbar nav .language-link { color: var(--primary); }
+.language-switch { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; white-space: nowrap; }
+.language-switch a { padding: 7px 8px; color: var(--muted); text-decoration: none; font-size: .73rem; font-weight: 700; }
+.language-switch a:hover, .language-switch a[aria-current] { color: var(--primary); background: #29273b; }
 .wordmark { font-size: 1rem !important; font-weight: 700; padding-left: 0 !important; }
 .wordmark span { color: var(--gold); font-size: 1.35rem; }
 .main { min-height: calc(100vh - 155px); padding-block: 37px 65px; }
@@ -53,7 +55,8 @@
 .hero { min-height: clamp(440px, 46vw, 615px); position: relative; display: grid; align-items: center; overflow: hidden; border-radius: 12px; border: 1px solid var(--line); isolation: isolate; }
 .hero-image { position: absolute; inset: 0; z-index: -1; background:
   linear-gradient(90deg, #10101de8 8%, #111222c4 32%, #11122221 78%), url('/hero.jpg') 62% 55% / cover; }
-.hero-content { padding: 52px clamp(28px, 6vw, 96px); }
+.hero-content { min-width: 0; padding: 52px clamp(28px, 6vw, 96px); }
+.hero h1 { overflow-wrap: anywhere; }
 .eyebrow { display: flex; align-items: center; gap: 7px; color: var(--gold); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .11em; margin-bottom: 13px; }
 .eyebrow span { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
 .hero h1 em { color: #dfd1ff; font-weight: 400; }

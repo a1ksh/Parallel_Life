@@ -1,5 +1,5 @@
 import { catalog, opportunities } from './story-data.js';
-import { aiEnabled, aiNotices, aiScene, aiConversation, generateAi } from './ai.js';
+import { aiEnabled, aiNotices, aiScene, aiConversation, generateAi, validLocale, narrationVariants, scriptedReply } from './ai.js';
 
 const worldDefaults = { career: 50, finances: 50, freedom: 50, knowledge: 50, wellbeing: 50, social: 50 };
 const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -21,8 +21,10 @@ function currentScene(game, branch) {
 function sceneView(game, branch) {
   const scene = currentScene(game, branch);
   if (!scene) return null;
-  const generated = branch.narration[scene.index];
+  const variants = narrationVariants(branch.narration[scene.index]);
+  const generated = variants.en;
   return { ...scene, count: pathFor(game, branch).beats.length, title: generated?.title ?? scene.title, body: generated?.narrative ?? scene.body,
+    authored_title: scene.title, authored_body: scene.body, variants,
     personalized: Boolean(generated), dialogue: generated?.dialogue ?? null,
     reaction: generated?.reaction ?? null, side_event: generated?.side_event ?? null,
     choices: scene.choices.map(([label, effects], i) => ({ id: String(i), label, focus: Object.keys(effects) })) };
@@ -100,6 +102,8 @@ async function chat(env, owner, game, branch, npcId, input) {
   if (!scene || input.scene_index !== scene.index || !scene.npcs.includes(npcId)) fail(409, 'That character is unavailable in this scene.');
   if (!validText(input.text, 600)) fail(422, 'Enter a message of up to 600 characters.');
   const text = input.text.trim();
+  const locale = input.locale === undefined ? 'en' : input.locale;
+  if (!validLocale(locale)) fail(422, 'Enter valid request data.');
   const scenario = scenarioFor(game.scenario_id);
   const npc = scenario.npcs.find((item) => item.id === npcId);
   const state = branch.npcs[npcId];
@@ -109,44 +113,37 @@ async function chat(env, owner, game, branch, npcId, input) {
   const { data, reason } = await generateAi(env, owner, 'npc_reply', {
     npc, trust: state.trust, timeline: { scenario: scenario.title, path: path.title },
     scene: aiScene({ ...scene, last_event: null }), events, ...aiConversation(state.messages, text), text,
-  });
+  }, locale);
   const live = Boolean(data);
-  let reply = data?.reply ?? npc.voice;
-  if (!live) {
-    const priorMessage = state.messages.findLast((item) => item.role === 'player');
-    const event = events.at(-1)?.outcome;
-    if (/\b(remember|earlier|before|last time)\b/i.test(text) && (priorMessage || event)) {
-      reply = priorMessage
-        ? `I remember your earlier message: “${priorMessage.text.slice(0, 120)}” ${event ?? npc.support}`
-        : `Here’s what I remember: ${event} ${npc.support}`;
-    } else if (/\b(your goal|your plans?|what (do|did) you (want|need)|why are you)\b/i.test(text)) {
-      reply = `My goal is to ${npc.goal[0].toLowerCase()}${npc.goal.slice(1)} ${npc.support}`;
-    } else if (event && !priorMessage) {
-      reply = `${event} ${npc.support}`;
-    } else if (priorMessage || state.trust >= 65) {
-      reply = npc.support;
-    }
-  }
-  state.messages.push({ role: 'player', text }, { role: 'npc', text: reply, mode: live ? 'live' : 'scripted' });
+  const reply = data?.reply ?? scriptedReply(locale, npc, state, events, text);
+  state.messages.push({ role: 'player', text, locale }, { role: 'npc', text: reply, mode: live ? 'live' : 'scripted', locale });
   if (state.messages.length <= 12) state.trust = bounded(state.trust + 1);
   if (currentScene(game, branch).choices.length !== scene.choices.length) delete branch.narration[scene.index];
   return reason === 'disabled' ? undefined : reason;
 }
 
-async function narrate(env, owner, game, branch) {
+async function narrate(env, owner, game, branch, locale) {
+  if (!validLocale(locale)) fail(422, 'Enter valid request data.');
   const scene = currentScene(game, branch);
-  if (!scene || branch.narration[scene.index]) return {};
+  if (!scene) return {};
+  const variants = narrationVariants(branch.narration[scene.index]);
+  if (variants[locale]) return {};
+  const source = Object.values(variants)[0];
   const scenario = scenarioFor(game.scenario_id);
   const { profile } = game;
-  const { data, reason } = await generateAi(env, owner, 'scene', {
+  const context = {
     scene: aiScene(scene), timeline: { scenario: scenario.title, path: pathFor(game, branch).title },
     profile: { age: profile.age, goal: profile.goal, values: profile.values, traits: profile.traits },
     events: branch.events.map(({ choice, outcome }) => ({ choice, outcome })),
     npcs: scenario.npcs.filter((npc) => scene.npcs.includes(npc.id)).map((npc) => ({ ...npc, trust: branch.npcs[npc.id].trust })),
-  });
+  };
+  const { data, reason } = await generateAi(env, owner, 'scene', source ? { prose: source } : context, locale, Boolean(source));
   if (!data) return { reason };
   if (!branch.events.length) data.reaction = '';
-  branch.narration[scene.index] = data;
+  if (source) for (const field of ['dialogue', 'reaction', 'side_event']) {
+    if (!source[field]) data[field] = '';
+  }
+  branch.narration[scene.index] = { ...variants, [locale]: data };
   return { updated: true };
 }
 
@@ -158,8 +155,9 @@ async function ownerFor(request) {
   return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function payload(request) {
+async function payload(request, optional = false) {
   const text = await request.text();
+  if (optional && !text) return {};
   if (text.length > 20_000) fail(413, 'Request too large.');
   const data = JSON.parse(text);
   if (!data || typeof data !== 'object' || Array.isArray(data)) fail(422, 'Enter valid request data.');
@@ -228,7 +226,8 @@ async function gameRoute(request, env, owner, id, tail) {
     if (endpoint === 'active' && method === 'PUT') game.active_id = branch.id;
     else if (endpoint === 'choices' && method === 'POST') choose(game, branch, await payload(request));
     else if (endpoint === 'scene' && method === 'POST') {
-      const { updated, reason } = await narrate(env, owner, game, branch);
+      const body = await payload(request, true);
+      const { updated, reason } = await narrate(env, owner, game, branch, body.locale === undefined ? 'en' : body.locale);
       if (!updated) return json({ ...gameView(game), ...(reason && { ai_notice: aiNotices[reason] }) });
     } else if (endpoint === 'npcs' && tail[4] === 'messages' && method === 'POST') {
       notice = await chat(env, owner, game, branch, tail[3], await payload(request));

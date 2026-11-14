@@ -1,0 +1,26 @@
+{
+  "en": {
+    "language": "English",
+    "recall": "\\b(remember|earlier|before|last time)\\b",
+    "goal": "\\b(your goal|your plans?|what (do|did) you (want|need)|why are you)\\b",
+    "earlier": "I remember your earlier message: “{message}” {followup}",
+    "witnessed": "Here’s what I remember: {event} {support}",
+    "motivation": "Here’s what I’m working toward: {goal} {support}"
+  },
+  "kk": {
+    "language": "Kazakh (Қазақша, Cyrillic)",
+    "recall": "есің|есіңде|есіңізде|еске|бұрын|алдыңғы|айтқан",
+    "goal": "мақсат|жоспар|қалайсың|ниет",
+    "earlier": "Бұрын айтқаның есімде: «{message}» {followup}",
+    "witnessed": "Менің есімде қалғаны: {event} {support}",
+    "motivation": "Менің мақсатым: {goal} {support}"
+  },
+  "ru": {
+    "language": "Russian (Русский)",
+    "recall": "помни|вспомни|раньше|прошлый раз|предыдущ",
+    "goal": "цель|цели|твои планы|хочешь|стремишься|тебе нужно",
+    "earlier": "Я помню твоё прежнее сообщение: «{message}» {followup}",
+    "witnessed": "Вот что я помню: {event} {support}",
+    "motivation": "Вот к чему я стремлюсь: {goal} {support}"
+  }
+}

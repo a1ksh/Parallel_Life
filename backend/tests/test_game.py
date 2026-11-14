@@ -169,8 +169,8 @@ def test_hybrid_dialogue_uses_only_current_timeline_and_keeps_personality(game_a
     assert before["npc"] == after["npc"]
     assert before["npc"]["name"] == "Emma Carter" and before["npc"]["goal"]
     assert before["timeline"] == after["timeline"]
-    assert "greenhouse" in before["earlier_player_statements"][0]
-    assert "greenhouse" in after["earlier_player_statements"][0]
+    assert "greenhouse" in before["earlier_player_statements"][0]["text"]
+    assert "greenhouse" in after["earlier_player_statements"][0]["text"]
     assert "blue ledger" in str(before["recent"]) and "blue ledger" not in str(after)
     assert before["events"][0]["choice"] == "Offer a small paid pilot"
     assert after["events"] == []
@@ -178,6 +178,64 @@ def test_hybrid_dialogue_uses_only_current_timeline_and_keeps_personality(game_a
         reloaded = active(restarted.get(session).json())
         assert reloaded["id"] == fork and reloaded["events"] == []
         assert reloaded["npcs"]["emma"]["messages"][-1]["mode"] == "live"
+
+
+def test_language_switch_keeps_npc_history_trust_and_choices(game_api):
+    client, _, _ = game_api
+    session = start(client)
+    original = branch(client, session, path_id="business")
+    branch_id = original["active_id"]
+    endpoint = f"{session}/branches/{branch_id}/npcs/emma/messages"
+    for locale, text, reply in (
+        ("en", "The greenhouse matters.", "I can help"),
+        ("kk", "Бұрын айтқаным есіңде ме?", "Бұрын айтқаның есімде"),
+        ("ru", "Какая у тебя цель?", "Вот к чему я стремлюсь"),
+    ):
+        response = client.post(endpoint, json={"scene_index": 0, "text": text, "locale": locale})
+        assert response.status_code == 200
+        result = active(response.json())
+        assert result["id"] == branch_id and result["scene"]["choices"] == active(original)["scene"]["choices"]
+        messages = result["npcs"]["emma"]["messages"]
+        assert messages[-1]["mode"] == "scripted" and messages[-1]["locale"] == locale
+        assert messages[-1]["text"].startswith(reply)
+        if locale == "kk":
+            assert "The greenhouse matters." in messages[-1]["text"]
+    assert [message["locale"] for message in messages] == ["en", "en", "kk", "kk", "ru", "ru"]
+    assert result["npcs"]["emma"]["trust"] == active(original)["npcs"]["emma"]["trust"] + 3
+    assert client.post(endpoint, json={"scene_index": 0, "text": "?", "locale": "xx"}).status_code == 422
+
+
+@pytest.mark.parametrize("scenario", CATALOG, ids=[scenario["id"] for scenario in CATALOG])
+def test_equivalent_localized_playthroughs_have_the_same_world_endings_and_forks(game_api, scenario):
+    client, _, _ = game_api
+    baseline = None
+    for locale, message in [("en", "Hello."), ("kk", "Сәлем."), ("ru", "Привет.")]:
+        session = start(client, scenario["id"])
+        trajectories = []
+        for path in scenario["paths"]:
+            for option in (0, 1):
+                game = branch(client, session, path_id=path["id"])
+                bid = game["active_id"]
+                first_npc = active(game)["scene"]["npcs"][0]
+                response = client.post(f"{session}/branches/{bid}/npcs/{first_npc}/messages",
+                                       json={"scene_index": 0, "text": message, "locale": locale})
+                assert response.status_code == 200
+                game = response.json()
+                steps = []
+                for index in range(5):
+                    current = active(game)
+                    steps.append(([c["id"] for c in current["scene"]["choices"]], current["world"]))
+                    game = decide(client, session, bid, index, option)
+                final = active(game)
+                fork = active(branch(client, session, parent_id=bid, checkpoint=2))
+                assert fork["events"] == final["events"][:2]
+                trajectories.append((steps, final["ending"], final["world"], fork["world"],
+                                     [c["id"] for c in fork["scene"]["choices"]]))
+        assert len(client.get(f"{session}/comparison").json()) == 6
+        if baseline is None:
+            baseline = trajectories
+        else:
+            assert trajectories == baseline
 
 
 def provider_response(value=None, *, status="completed", refusal=False, http_status=200):

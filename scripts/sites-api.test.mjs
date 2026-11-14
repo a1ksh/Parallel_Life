@@ -51,7 +51,14 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
   try {
     const landing = await call('/');
     assert.match(landing, /One life\./);
-    assert.match(landing, /href="\/legacy\/"[^>]*>Қазақша ойын/);
+    assert.match(landing, /href="\/kk"[^>]*>KZ/);
+    const structure = (html) => [...html.matchAll(/<(header|nav|section|button)[^>]* class="([^"]+)"/g)].map(([, tag, name]) => [tag, name]);
+    for (const [locale, headline] of [['en', 'Infinite possibilities.'], ['kk', 'Шексіз мүмкіндік.'], ['ru', 'Бесконечные возможности.']]) {
+      const localized = await call('/' + locale);
+      assert.ok(localized.includes(headline));
+      assert.ok(localized.includes(`<html lang="${locale}"`));
+      assert.deepEqual(structure(localized), structure(landing));
+    }
     const chunk = landing.match(/src="(\/_next\/[^"]+\.js)"/)[1];
     assert.ok((await call(chunk)).length > 100);
     const legacy = await call('/legacy/');
@@ -92,7 +99,7 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
       };
       const live = await call(path(forkId) + '/npcs/emma/messages', 'POST', { scene_index: 0, text: 'How should we start?' });
       assert.deepEqual(live.branches.find((branch) => branch.id === forkId).npcs.emma.messages.at(-1),
-        { role: 'npc', text: 'Let’s price the work before we promise it.', mode: 'live' });
+        { role: 'npc', text: 'Let’s price the work before we promise it.', mode: 'live', locale: 'en' });
       assert.deepEqual(providerContext.recent.filter(({ role }) => role === 'player').map(({ text }) => text), ['What is your goal?']);
       assert.deepEqual(providerContext.events, []);
       assert.equal(providerContext.npc.name, 'Emma Carter');
@@ -150,6 +157,8 @@ test('the Worker accepts only bounded prose and falls back after a provider erro
     () => providerText({ ...sceneText, world: { finances: 100 } }),
     () => providerText(sceneText),
     () => providerText({ reply: 'I’d start with one customer.' }),
+    () => providerText({ ...sceneText, title: 'Предложение на столе', narrative: 'Эмма изучает предложение.',
+      dialogue: 'Эмма: Давай уточним объём.', side_event: 'За окном начинается дождь.' }),
   ];
   function providerText(value) {
     return Response.json({ status: 'completed', output: [{ type: 'message',
@@ -186,12 +195,20 @@ test('the Worker accepts only bounded prose and falls back after a provider erro
     assert.deepEqual(calls.map((request) => request.max_output_tokens), [420, 650, 650, 420]);
     assert.equal(JSON.parse(calls[3].input).recent[0].text, 'What do you think?');
     assert.ok(calls.every((request) => request.store === false && request.text.format.strict));
+    const translated = await call(path + '/scene', { locale: 'ru' });
+    assert.match(calls[4].instructions, /Russian.*Translate each supplied prose/);
+    assert.deepEqual(JSON.parse(calls[4].input).prose, sceneText);
+    assert.equal(translated.branches[0].scene.variants.ru.title, 'Предложение на столе');
+    assert.equal(translated.branches[0].scene.variants.en.title, sceneText.title);
+    assert.deepEqual(translated.branches[0].scene.choices, initial.scene.choices);
+    await call(path + '/scene', { locale: 'ru' });
+    assert.equal(calls.length, 5);
     db.sql.prepare("UPDATE ai_usage SET calls = 500 WHERE bucket = 'global:day'").run();
     const capped = await call(npc, { scene_index: 0, text: 'Can I still play?' });
     assert.match(capped.ai_notice, /usage limit/);
     assert.equal(capped.branches[0].npcs.emma.messages.at(-1).mode, 'scripted');
-    assert.equal(calls.length, 4);
-    assert.equal(db.sql.prepare("SELECT calls FROM ai_usage WHERE bucket LIKE 'guest:%'").get().calls, 4);
+    assert.equal(calls.length, 5);
+    assert.equal(db.sql.prepare("SELECT calls FROM ai_usage WHERE bucket LIKE 'guest:%'").get().calls, 5);
     assert.equal((await call(session)).branches[0].npcs.emma.messages.length, 6);
   } finally {
     globalThis.fetch = realFetch;

@@ -43,10 +43,16 @@ for (const scenario of catalog) {
 }
 const source = async (file) => (await readFile(new URL(file, root), 'utf8')).replace(/^import .*;\r?\n/gm, '');
 const policy = JSON.parse(await readFile(new URL('backend/app/services/ai-policy.json', root), 'utf8'));
+const localePolicy = JSON.parse(await readFile(new URL('backend/app/services/locale-policy.json', root), 'utf8'));
+const kk = JSON.parse(await readFile(new URL('backend/app/scenarios/kk.json', root), 'utf8'));
+const ru = JSON.parse(await readFile(new URL('backend/app/scenarios/ru.json', root), 'utf8'));
 const worker = `
 const catalog = ${JSON.stringify(catalog)};
 const opportunities = ${JSON.stringify(opportunities)};
 const policy = ${JSON.stringify(policy)};
+const localePolicy = ${JSON.stringify(localePolicy)};
+const kk = ${JSON.stringify(kk)};
+const ru = ${JSON.stringify(ru)};
 ${await source('server/ai.js')}
 ${await source('server/sites-api.js')}
 const assets = new Map(${JSON.stringify(assets)});
@@ -56,7 +62,8 @@ export default {
     if (pathname.startsWith('/api/')) return handleApi(request, env, pathname);
     if (pathname === '/legacy') return new Response(null, { status: 308, headers: { Location: '/legacy/' } });
     if (pathname === '/legacy/api/status') return Response.json({ ai: false, character: false });
-    const asset = assets.get(pathname.endsWith('/') ? pathname + 'index.html' : pathname);
+    const asset = assets.get(pathname.endsWith('/') ? pathname + 'index.html' : pathname) ??
+      (['/en', '/kk', '/ru'].includes(pathname) ? assets.get(pathname + '/index.html') : undefined);
     if (!asset) return new Response('Not found', { status: 404 });
     if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 });
     const body = request.method === 'HEAD' ? null : new Blob([

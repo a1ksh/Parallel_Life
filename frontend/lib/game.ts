@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Locale } from "@/i18n/config";
 
 export const categories = ["career", "education", "relationships"] as const;
 export type Category = typeof categories[number];
@@ -21,9 +22,12 @@ export type Scene = {
   index: number; count: number; title: string; body: string; when: string; location: string; npcs: string[];
   last_event: string | null; dialogue: string | null; personalized: boolean;
   reaction?: string | null; side_event?: string | null;
+  authored_title?: string; authored_body?: string; has_personalization?: boolean;
+  variants?: Partial<Record<Locale, Narration>>;
   choices: { id: string; label: string; focus: string[] }[];
 };
-export type Message = { role: "player" | "npc"; text: string; mode?: "scripted" | "live" };
+export type Narration = { title: string; narrative: string; dialogue: string; reaction?: string; side_event?: string };
+export type Message = { role: "player" | "npc"; text: string; locale?: Locale; mode?: "scripted" | "live" };
 export type StoryEvent = { scene: string; choice: string; outcome: string; effects: Record<string, number> };
 export type Branch = {
   id: string; path_id: string; parent_id: string | null; fork_at: number;
