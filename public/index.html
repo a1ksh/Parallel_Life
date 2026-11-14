@@ -6,6 +6,7 @@
   <meta name="description" content="Үш өмірлік таңдауды ойнап көріп, балама оқиғалардың финалын салыстыр.">
   <meta name="theme-color" content="#171e1b">
   <title>Parallel Life — Басқа жолды таңдасаң ше?</title>
+  <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="./style.css">
   <script type="module" src="./game.js"></script>
 </head>
@@ -16,11 +17,14 @@
         <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
         <span>Parallel<span class="brand-accent"> Life</span></span>
       </button>
-      <button type="button" class="header-link" data-action="home">Сценарийлер <span aria-hidden="true">↗</span></button>
+      <nav aria-label="Басты мәзір">
+        <button type="button" class="header-link" data-action="home">Сценарийлер <span aria-hidden="true">↗</span></button>
+        <a class="header-link language-link" href="/" lang="en" hreflang="en">English version</a>
+      </nav>
     </div>
   </header>
   <main id="app"></main>
-  <footer class="site-footer"><span>Parallel Life</span><span>Интерактивті көркем оқиға</span></footer>
+  <footer class="site-footer"><span>Parallel Life</span><span id="story-mode">Демо режимі · авторлық оқиға</span></footer>
   <noscript>Ойнау үшін браузерде JavaScript қос.</noscript>
 </body>
 </html>

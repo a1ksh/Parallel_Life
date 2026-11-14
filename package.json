@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "npm --prefix frontend run build && node scripts/build.mjs",
-    "test:sites": "node --test scripts/sites-api.test.mjs"
+    "test:sites": "node --test scripts/sites-api.test.mjs scripts/legacy.test.mjs"
   }
 }

@@ -33,18 +33,18 @@ function StartHeader({ eyebrow, title, children }: { eyebrow: string; title: str
   return <div className="page-heading"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1>{children}</div>;
 }
 
-function ScenarioCards({ select }: { select: (category: Category) => void }) {
+function ScenarioCards({ select, continuing }: { select: (category: Category) => void; continuing?: Category }) {
   return <div className="scenario-grid">{categories.map((id) => {
     const { title, detail, icon: Icon } = categoryInfo[id];
     return <button type="button" key={id} className={`scenario-card ${id}`} onClick={() => select(id)}>
       <SceneArt category={id} />
       <div className="scenario-top"><span className="scenario-icon"><Icon size={21} /></span><ArrowDownRight size={20} /></div>
-      <div><h3>{title}</h3><p>{detail}</p></div>
+      <div><h3>{title}</h3><p>{detail}</p><span className="scenario-action">{continuing === id ? "Continue" : "Start"} <span aria-hidden="true">→</span></span></div>
     </button>;
   })}</div>;
 }
 
-function Home({ start }: { start: (category?: Category) => void }) {
+function Home({ start, continuing, resume }: { start: (category?: Category) => void; continuing?: Category; resume: () => void }) {
   return <>
     <section className="hero">
       <div className="hero-image" />
@@ -56,7 +56,7 @@ function Home({ start }: { start: (category?: Category) => void }) {
       </div>
     </section>
     <section className="catalog"><div className="section-heading"><h2>Choose a crossroads</h2><span>Three playable stories</span></div>
-      <ScenarioCards select={start} />
+      <ScenarioCards continuing={continuing} select={(category) => category === continuing ? resume() : start(category)} />
     </section>
   </>;
 }
@@ -260,7 +260,7 @@ function Compare({ game, open }: { game: Game; open: (view: View) => void }) {
   const [right, setRight] = useState(game.endings[1]?.id ?? "");
   const a = game.endings.find((ending) => ending.id === left) ?? game.endings[0];
   const b = game.endings.find((ending) => ending.id === right && ending.id !== a?.id);
-  return <section><StartHeader eyebrow="Alternative lives" title="Compare timelines"><p>See the choices, benefits, and trade-offs you experienced in each life.</p></StartHeader>
+  return <section><StartHeader eyebrow={categoryInfo[game.scenario_id].title} title="Compare timelines"><p>See the choices, benefits, and trade-offs you experienced in each life.</p></StartHeader>
     <div className="compare-grid">
       <div>{a && <><label>First timeline<select value={a.id} onChange={(event) => {
         setLeft(event.target.value);
@@ -356,6 +356,7 @@ export function ParallelLife() {
   }
 
   useEffect(() => {
+    window.history.replaceState({ ...window.history.state, parallelLifeView: "home" }, "");
     const id = localStorage.getItem(activeKey);
     void perform(async () => {
       const profiles = await api<Profile[]>("/profiles");
@@ -365,6 +366,7 @@ export function ParallelLife() {
       try {
         update(await api<Game>(`/sessions/${id}`));
         setView("story");
+        window.history.replaceState({ ...window.history.state, parallelLifeView: "story" }, "");
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) localStorage.removeItem(activeKey);
         throw error;
@@ -372,7 +374,22 @@ export function ParallelLife() {
     });
   }, [setView, update]);
 
+  useEffect(() => {
+    function restoreView(event: PopStateEvent) {
+      const next: View = event.state?.parallelLifeView ?? "home";
+      const { game, profile } = useGame.getState();
+      setView(!game && ["story", "map", "compare", "lab", "bridge"].includes(next) ||
+        !profile && next === "scenarios" ? "home" : next);
+      if (next === "universes") void perform(async () => { setUniverses(await api<Universe[]>("/sessions")); });
+    }
+    window.addEventListener("popstate", restoreView);
+    return () => window.removeEventListener("popstate", restoreView);
+  }, [setView]);
+
   function open(next: View) {
+    if (useGame.getState().view !== next) {
+      window.history.pushState({ ...window.history.state, parallelLifeView: next }, "");
+    }
     setView(next);
     window.scrollTo(0, 0);
     if (next === "universes") {
@@ -440,7 +457,7 @@ export function ParallelLife() {
 
   let content: ReactNode;
   switch (view) {
-    case "home": content = <Home start={start} />; break;
+    case "home": content = <Home start={start} continuing={game?.scenario_id} resume={() => open("story")} />; break;
     case "onboarding": content = <Onboarding key={preferred} category={preferred} onSave={saveProfile} />; break;
     case "scenarios": content = <section className="catalog-page">
       <StartHeader eyebrow="Your next decision" title="Choose a crossroads"><p>Playing as {profile?.name}. Choose the story you want to explore first.</p></StartHeader>
@@ -450,7 +467,7 @@ export function ParallelLife() {
         {!busy && <Button variant="outline" onClick={() => open("universes")}>Try again</Button>}</div> : universes.length ? <div className="universe-list">{universes.map((universe) =>
         <article className="panel universe" key={universe.id}><div><h2>{categoryInfo[universe.scenario_id].title}</h2>
           <p>{universe.profile.name} · {universe.branches} timelines · {universe.completed} finished</p></div>
-          <div className="actions"><Button disabled={busy} onClick={() => resume(universe.id)}>Resume</Button>
+          <div className="actions"><Button disabled={busy} onClick={() => resume(universe.id)}>Continue</Button>
             <Button variant="ghost" disabled={busy} onClick={() => setDeleteId(universe.id)} aria-label={`Delete ${categoryInfo[universe.scenario_id].title} universe`}><Trash2 size={17} /></Button></div>
           {deleteId === universe.id && <div className="delete-confirm"><p>Delete this universe, its timeline history, and its saved reflections?</p>
             <Button variant="outline" disabled={busy} onClick={() => remove(universe.id)}>Delete universe</Button>
@@ -487,6 +504,7 @@ export function ParallelLife() {
     <header className="topbar"><div className="frame topbar-inner">
       <Button variant="ghost" className="wordmark" disabled={busy} onClick={() => open("home")}><span aria-hidden="true">◈</span> Parallel Life</Button>
       <nav aria-label="Main navigation">
+        <a className="button button-ghost language-link" href="/legacy/" lang="kk" hrefLang="kk">Қазақша ойын</a>
         {game && view !== "story" && <Button variant="ghost" disabled={busy} onClick={() => open("story")}>Resume</Button>}
         {profile && view === "home" && <Button variant="ghost" disabled={busy} onClick={() => open("scenarios")}>New story</Button>}
         <Button variant="ghost" disabled={busy} onClick={() => open("universes")}><Layers size={16} /> My Universes</Button>

@@ -30,6 +30,8 @@
 .topbar { border-bottom: 1px solid var(--line); }
 .topbar-inner { min-height: 71px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .topbar nav, .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.topbar nav { justify-content: flex-end; }
+.topbar nav .language-link { color: var(--primary); }
 .wordmark { font-size: 1rem !important; font-weight: 700; padding-left: 0 !important; }
 .wordmark span { color: var(--gold); font-size: 1.35rem; }
 .main { min-height: calc(100vh - 155px); padding-block: 37px 65px; }
@@ -79,6 +81,7 @@
 .scenario-card::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, #131421 4%, #131421d9 39%, #13142125 100%); }
 .scenario-card:hover > .scene-art { transform: scale(1.04); }
 .scenario-card p { color: #d4d1e0; }
+.scenario-action { display: inline-block; margin-top: 9px; color: var(--tint); font-size: .8rem; font-weight: 650; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: clamp(17px, 3.7vw, 34px); min-width: 0; }
 .page-heading { margin: 4px 0 25px; }
 .page-heading h1 { font-size: clamp(3.1rem, 6.8vw, 5.25rem); }

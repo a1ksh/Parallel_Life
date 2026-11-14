@@ -22,9 +22,9 @@ cd backend
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://localhost:8000`. FastAPI serves the exported Next.js frontend and the REST API from the same origin. API documentation is at `/docs`. The tables are created at startup. SQLite is the local default.
+Open `http://localhost:8000/` for English and `http://localhost:8000/legacy/` for Kazakh. Use the same hostname and port to resume an earlier browser save. FastAPI serves both games and the REST API from the same origin. API documentation is at `/docs`. The tables are created at startup. SQLite is the local default.
 
-Copy `.env.example` to `.env` in the repository root to override settings. Supply `OPENAI_API_KEY` on the server and restart to enable live NPC conversations and optional scene personalization. `OPENAI_MODEL` selects the model. Without a key or when the provider fails, the game uses authored scenes and explicitly labels scripted NPC replies.
+Copy `.env.example` to `.env` in the repository root to override settings. Supply `OPENAI_API_KEY` on the server and restart to enable live English NPC conversations and optional scene personalization. `OPENAI_MODEL` selects the model. Without a key or when the provider fails, the English game uses authored scenes and explicitly labels scripted NPC replies. The Kazakh legacy edition uses authored scenes and stores progress in the current browser.
 
 ## Deploy
 

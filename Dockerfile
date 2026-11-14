@@ -11,6 +11,7 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./backend/app
+COPY public ./public
 COPY --from=frontend /app/frontend/out ./frontend/out
 WORKDIR /app/backend
 CMD ["sh", "-c", "exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

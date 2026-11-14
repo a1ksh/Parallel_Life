@@ -50,9 +50,17 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
   try {
     const landing = await call('/');
     assert.match(landing, /One life\./);
+    assert.match(landing, /href="\/legacy\/"[^>]*>Қазақша ойын/);
     const chunk = landing.match(/src="(\/_next\/[^"]+\.js)"/)[1];
     assert.ok((await call(chunk)).length > 100);
-    assert.match(await call('/legacy/'), /Басқа жолды таңдасаң/);
+    const legacy = await call('/legacy/');
+    assert.match(legacy, /Басқа жолды таңдасаң/);
+    assert.match(legacy, /href="\/"[^>]*>English version/);
+    assert.deepEqual(await call('/legacy/api/status'), { ai: false, character: false });
+    const icon = await worker.fetch(new Request('https://parallel.example/favicon.ico'), env);
+    assert.equal(icon.status, 200);
+    assert.equal(icon.headers.get('content-type'), 'image/x-icon');
+    assert.equal(new DataView(await icon.arrayBuffer()).getUint16(2, true), 1);
     assert.deepEqual(await call('/api/status'), { ai: false, storage: true });
     assert.deepEqual((await call('/api/scenarios')).map((scenario) => scenario.paths.length), [3, 3, 3]);
     const profile = await call('/api/profiles', 'POST', {
@@ -67,9 +75,29 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     const before = await call(path(source) + '/npcs/emma/messages', 'POST', { scene_index: 1, text: 'Do you remember earlier?' });
     const original = before.branches.find((branch) => branch.id === source);
     assert.match(original.npcs.emma.messages.at(-1).text, /small paid pilot/);
+    assert.equal(original.npcs.emma.messages.at(-1).mode, 'scripted');
     const fork = await call(session + '/branches', 'POST', { parent_id: source, checkpoint: 0 });
     const forkId = fork.active_id;
     assert.equal(fork.branches.find((branch) => branch.id === forkId).npcs.emma.messages.length, 2);
+    const realFetch = globalThis.fetch;
+    let providerContext;
+    try {
+      env.OPENAI_API_KEY = 'test-only';
+      globalThis.fetch = async (url, request) => {
+        assert.equal(url, 'https://api.openai.com/v1/responses');
+        providerContext = JSON.parse(JSON.parse(request.body).input);
+        return Response.json({ status: 'completed', output: [{ type: 'message',
+          content: [{ type: 'output_text', text: '{"reply":"Let’s price the work before we promise it."}' }] }] });
+      };
+      const live = await call(path(forkId) + '/npcs/emma/messages', 'POST', { scene_index: 0, text: 'How should we start?' });
+      assert.deepEqual(live.branches.find((branch) => branch.id === forkId).npcs.emma.messages.at(-1),
+        { role: 'npc', text: 'Let’s price the work before we promise it.', mode: 'live' });
+      assert.deepEqual(providerContext.recent.filter(({ role }) => role === 'player').map(({ text }) => text), ['What is your goal?']);
+      assert.deepEqual(providerContext.events, []);
+    } finally {
+      delete env.OPENAI_API_KEY;
+      globalThis.fetch = realFetch;
+    }
     for (let i = 0; i < 5; i++) await call(path(forkId) + '/choices', 'POST', { scene_index: i, choice_id: '1' });
     const reopened = await call(path(source) + '/active', 'PUT');
     assert.deepEqual(reopened.branches.find((branch) => branch.id === source).npcs.emma.messages, original.npcs.emma.messages);

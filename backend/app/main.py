@@ -41,6 +41,14 @@ def create_app(database_url: str | None = None, serve_frontend: bool = True):
         return await call_next(request)
 
     application.include_router(router)
+    legacy = ROOT / "public"
+    if serve_frontend and legacy.is_dir():
+        @application.get("/legacy/api/status", include_in_schema=False)
+        async def legacy_status():
+            return {"ai": False, "character": False}
+
+        application.mount("/legacy", StaticFiles(directory=legacy, html=True), name="legacy")
+
     frontend = ROOT / "frontend" / "out"
     if serve_frontend and frontend.is_dir():
         application.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")

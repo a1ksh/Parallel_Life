@@ -35,6 +35,9 @@ h1:focus { outline: none; }
 .brand-mark i { width: 4px; height: 19px; background: var(--accent); border-radius: 3px; }
 .brand-mark i:last-child { opacity: .65; }
 .header-link { font-size: .85rem; color: var(--muted); }
+.header-inner nav { display: flex; flex-wrap: wrap; justify-content: flex-end; column-gap: 16px; }
+.header-inner nav .header-link { min-height: 44px; }
+.language-link { color: var(--accent); text-underline-offset: 3px; }
 .hero { display: grid; grid-template-columns: .96fr 1.04fr; border-bottom: 1px solid var(--line); min-height: 470px; }
 .hero-copy { padding: 66px 28px 59px 0; align-self: center; }
 .eyebrow { font-size: .73rem; font-weight: 700; color: var(--accent); letter-spacing: .11em; text-transform: uppercase; margin-bottom: 17px; }
@@ -72,6 +75,7 @@ h1:focus { outline: none; }
 .category { font-size: .71rem; color: var(--tint); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 .scenario-card strong { font: 500 clamp(1.35rem, 2.45vw, 1.9rem)/1.2 var(--display); letter-spacing: -.025em; }
 .card-note { margin-top: auto; font-size: .82rem; color: var(--muted); }
+.card-action { font-size: .82rem; font-weight: 650; color: var(--tint); }
 .site-footer { min-height: 70px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 15px; font-size: .75rem; color: var(--muted); }
 .play-layout { min-height: calc(100vh - 145px); padding: 65px 0; display: grid; grid-template-columns: minmax(0, 1fr) 235px; gap: clamp(25px, 5vw, 75px); align-items: start; }
 .play-main { min-width: 0; }
@@ -99,9 +103,13 @@ h1:focus { outline: none; }
 .tradeoffs div + div { border-left-color: #c99171; }
 .tradeoffs dt { font-size: .73rem; font-weight: 700; color: var(--muted); }
 .tradeoffs dd { margin: 1px 0 0; font-size: .9rem; }
+.decision-summary { margin: 18px 0; font-size: .88rem; }
+.decision-summary h3 { margin: 0; font-size: .9rem; }
+.decision-summary ol { margin: 6px 0 0; padding-inline-start: 1.3rem; color: var(--muted); }
 .comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px; margin-top: 25px; }
 .comparison-card { border: 1px solid var(--line); padding: 17px; border-radius: 5px; min-width: 0; }
 .comparison-card h2 { font-size: 1.55rem; margin-bottom: 12px; }
+.comparison-card .field { margin: 0 0 15px; }
 .comparison-card > p:not(.eyebrow) { color: var(--muted); font-size: .88rem; }
 .passport { border: 1px solid var(--line); border-radius: 5px; padding: clamp(16px, 4vw, 28px); margin-top: 24px; background: var(--panel); }
 .passport h2 { font-size: clamp(1.4rem, 3vw, 2.2rem); margin-bottom: 18px; }
