@@ -73,6 +73,9 @@ class DecisionPassport(BaseModel):
     uncertainty: str = Field(default="", max_length=500)
     next_step: str = Field(default="", max_length=500)
     timelines: list[dict] = Field(default_factory=list)
+    dilemma: str = ""
+    questions: list[str] = Field(default_factory=list)
+    experiment_title: str = ""
 
 
 class ActionExperiment(BaseModel):
@@ -98,17 +101,17 @@ class StartSession(BaseModel):
 class StartBranch(BaseModel):
     path_id: str | None = None
     parent_id: str | None = None
-    checkpoint: int | None = Field(default=None, ge=0, le=3)
+    checkpoint: int | None = Field(default=None, ge=0, le=4)
 
 
 class PlayerChoice(BaseModel):
     choice_id: str
-    scene_index: int = Field(ge=0, le=3)
+    scene_index: int = Field(ge=0, le=4)
 
 
 class ChatInput(BaseModel):
     text: MessageText
-    scene_index: int = Field(ge=0, le=3)
+    scene_index: int = Field(ge=0, le=4)
 
 
 class ProposedEffect(BaseModel):

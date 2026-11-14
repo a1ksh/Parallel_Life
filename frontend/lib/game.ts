@@ -14,13 +14,13 @@ export type NPC = {
 export type Scenario = {
   id: Category; title: string; subtitle: string; setting: string; intro: string; age: number;
   npcs: NPC[]; paths: { id: string; title: string; short: string; description: string }[];
-  priorities: string[]; question: string;
+  priorities: string[]; question: string; questions: string[];
   experiment: { title: string; description: string; steps: string[] };
 };
 export type Scene = {
-  index: number; title: string; body: string; when: string; location: string; npcs: string[];
+  index: number; count: number; title: string; body: string; when: string; location: string; npcs: string[];
   last_event: string | null; dialogue: string | null; personalized: boolean;
-  choices: { id: string; label: string }[];
+  choices: { id: string; label: string; focus: string[] }[];
 };
 export type Message = { role: "player" | "npc"; text: string; mode?: "scripted" | "live" };
 export type StoryEvent = { scene: string; choice: string; outcome: string; effects: Record<string, number> };
@@ -30,9 +30,12 @@ export type Branch = {
   scene?: Scene | null; npcs?: Record<string, { trust: number; messages: Message[] }>;
 };
 export type Ending = {
-  id: string; path: string; title: string; body: string; gain: string; cost: string; events: StoryEvent[];
+  id: string; path: string; title: string; body: string; gain: string; cost: string; aftermath?: string | null; events: StoryEvent[];
 };
-export type Passport = { priorities: string[]; uncertainty: string; next_step: string; timelines: Ending[] };
+export type Passport = {
+  priorities: string[]; uncertainty: string; next_step: string; timelines: Ending[];
+  dilemma?: string; questions?: string[]; experiment_title?: string;
+};
 export type Experiment = { checked: number[]; status: "active" | "completed" | "skipped" };
 export type Game = {
   id: string; profile: Profile; scenario_id: Category; active_id: string | null; branches: Branch[];

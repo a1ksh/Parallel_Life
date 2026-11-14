@@ -1,0 +1,11 @@
+{
+  "career": {
+    "questions": ["When did the work feel most like your own?", "What would make a less predictable income manageable for you?"]
+  },
+  "education": {
+    "questions": ["Which part of learning mattered most: the material, the community, or the work it opened up?", "What could you learn about one option before committing to it?"]
+  },
+  "relationships": {
+    "questions": ["When did you feel able to state a need clearly?", "What would make a shared plan feel fair to both people?"]
+  }
+}

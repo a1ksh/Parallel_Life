@@ -61,16 +61,17 @@ def test_all_paths_and_endings(game_api, scenario):
             game = branch(client, url, path_id=path["id"])
             original = active(game)["world"]
             branch_id = game["active_id"]
-            for index in range(4):
+            for index in range(5):
                 scene = active(game)["scene"]
                 assert len(scene["choices"]) >= 2
                 assert len(set(scene["npcs"])) >= 2
+                assert scene["count"] == 5
                 game = decide(client, url, branch_id, index, choice)
             assert active(game)["world"] != original
             assert active(game)["ending"] == choice
     compare = client.get(f"{url}/comparison").json()
     assert len({end["title"] for end in compare}) == 6
-    assert all(len(end["events"]) == 4 and end["gain"] and end["cost"] for end in compare)
+    assert all(len(end["events"]) == 5 and end["gain"] and end["cost"] and end["aftermath"] for end in compare)
 
 
 def test_checkpoint_isolation_and_reload(game_api):
@@ -84,6 +85,7 @@ def test_checkpoint_isolation_and_reload(game_api):
     replies = active(remembered)["npcs"]["emma"]["messages"]
     assert replies[-1]["mode"] == "scripted"
     assert "small paid pilot" in replies[-1]["text"]
+    assert "What is your goal?" in replies[-1]["text"]
     forked = branch(client, session, parent_id=source, checkpoint=0)
     fork_id = forked["active_id"]
     assert active(forked)["events"] == []
@@ -104,11 +106,12 @@ def test_reflection_experiment_and_deletion(game_api):
     client, _, _ = game_api
     session = start(client, "education")
     branch_id = branch(client, session, path_id="abroad")["active_id"]
-    for index in range(4):
+    for index in range(5):
         decide(client, session, branch_id, index, 0)
     passport = client.put(f"{session}/reflection", json={"priorities": ["Community"], "next_step": "Compare two programs."})
     assert passport.status_code == 200, passport.text
     assert len(passport.json()["passport"]["timelines"]) == 1
+    assert len(passport.json()["passport"]["questions"]) == 2
     result = client.put(f"{session}/experiment", json={"checked": [0, 2, 2], "status": "active"})
     assert result.status_code == 200, result.text
     assert client.get(session).json()["experiment"]["checked"] == [0, 2]

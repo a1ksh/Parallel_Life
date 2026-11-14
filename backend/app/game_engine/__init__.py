@@ -85,7 +85,7 @@ def choose(game: GameSession, branch: TimelineBranch, scene_index: int, choice_i
     branch.events.append(StoryEvent(scene=scene["title"], choice_id=choice_id, choice=label,
                                    outcome=outcome, world=branch.world, effects=effects))
     if len(branch.events) == len(path_for(game, branch)["beats"]):
-        branch.ending = int(choice_id)
+        branch.ending = int(branch.events[-2].choice_id)
 
 
 def comparisons(game: GameSession) -> list[dict]:
@@ -95,7 +95,8 @@ def comparisons(game: GameSession) -> list[dict]:
             continue
         path = path_for(game, branch)
         title, body, gain, cost = path["endings"][branch.ending]
+        aftermath = branch.events[-1].outcome if len(branch.events) == len(path["beats"]) else None
         result.append({"id": branch.id, "path": path["title"], "title": title, "body": body,
-                       "gain": gain, "cost": cost,
+                       "gain": gain, "cost": cost, "aftermath": aftermath,
                        "events": [event.model_dump() for event in branch.events]})
     return result

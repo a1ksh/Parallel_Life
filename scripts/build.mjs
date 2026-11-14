@@ -34,6 +34,12 @@ const assets = [
 ];
 const catalog = JSON.parse(await readFile(new URL('backend/app/scenarios/catalog.json', root), 'utf8'));
 const opportunities = JSON.parse(await readFile(new URL('backend/app/scenarios/opportunities.json', root), 'utf8'));
+const aftermaths = JSON.parse(await readFile(new URL('backend/app/scenarios/aftermaths.json', root), 'utf8'));
+const decisionLab = JSON.parse(await readFile(new URL('backend/app/scenarios/decision-lab.json', root), 'utf8'));
+for (const scenario of catalog) {
+  Object.assign(scenario, decisionLab[scenario.id]);
+  for (const path of scenario.paths) path.beats.push({ when: 'Year 3', ...aftermaths[scenario.id][path.id] });
+}
 const api = (await readFile(new URL('server/sites-api.js', root), 'utf8')).replace(/^import .*;\r?\n/, '');
 const worker = `
 const catalog = ${JSON.stringify(catalog)};

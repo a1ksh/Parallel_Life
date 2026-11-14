@@ -75,9 +75,11 @@ def scene_view(game: GameSession, branch):
     index = scene["index"]
     narration = branch.narration.get(str(index), {})
     return {**{key: scene[key] for key in ("index", "when", "location", "npcs", "last_event")},
+            "count": len(path_for(game, branch)["beats"]),
             "title": narration.get("title", scene["title"]), "body": narration.get("narrative", scene["body"]),
             "dialogue": narration.get("dialogue"), "personalized": bool(narration),
-            "choices": [{"id": str(i), "label": option[0]} for i, option in enumerate(scene["choices"])]}
+            "choices": [{"id": str(i), "label": option[0], "focus": list(option[1])}
+                        for i, option in enumerate(scene["choices"])]}
 
 
 def view(game: GameSession):
@@ -245,7 +247,8 @@ def reflect(session_id: str, payload: DecisionPassport, db: DB, guest: Owner):
     if any(priority not in scenario["priorities"] for priority in payload.priorities):
         raise HTTPException(422, "Choose priorities from this scenario.")
     game.passport = payload.model_copy(update={"timelines": results,
-        "priorities": list(dict.fromkeys(payload.priorities))})
+        "priorities": list(dict.fromkeys(payload.priorities)), "dilemma": scenario["intro"],
+        "questions": scenario["questions"], "experiment_title": scenario["experiment"]["title"]})
     return commit(db, record, game)
 
 

@@ -1,8 +1,8 @@
 # Parallel Life
 
-An interactive fictional life simulator for adults. Start with a fictional avatar or make your own. Each of the three stories offers three initial paths, an opening decision and four playable chapters per path, interactive NPCs, and two authored endings per path. Choices change bounded world values and NPC trust. Trust can unlock an additional decision.
+An interactive fictional life simulator for adults. Start with a fictional avatar or make your own. Each of the three stories offers three initial paths, five playable scenes after the opening decision, interactive NPCs, and two authored endings per path. Choices change bounded world values and NPC trust. Trust can unlock an additional decision. The fifth scene adds a choice-specific epilogue to the ending.
 
-The Life Map restores saved checkpoints into independent timelines. Compare endings and earlier decisions, save a Decision Passport, and track an optional Reality Bridge experiment. My Universes lists and deletes saved games. Guest games are tied to a random token stored in the browser.
+The Life Map shows named decision checkpoints and restores them into independent timelines. Compare endings and earlier decisions, save a Decision Passport with reflection questions, and track an optional Reality Bridge experiment. My Universes lists and deletes saved games. Guest games are tied to a random token stored in the browser. Timelines completed before the fifth scene was added keep their saved ending.
 
 ## Run locally
 

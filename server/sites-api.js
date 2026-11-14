@@ -21,16 +21,17 @@ function sceneView(game, branch) {
   const scene = currentScene(game, branch);
   if (!scene) return null;
   const generated = branch.narration[scene.index];
-  return { ...scene, title: generated?.title ?? scene.title, body: generated?.narrative ?? scene.body,
+  return { ...scene, count: pathFor(game, branch).beats.length, title: generated?.title ?? scene.title, body: generated?.narrative ?? scene.body,
     personalized: Boolean(generated), dialogue: generated?.dialogue ?? null,
-    choices: scene.choices.map(([label], i) => ({ id: String(i), label })) };
+    choices: scene.choices.map(([label, effects], i) => ({ id: String(i), label, focus: Object.keys(effects) })) };
 }
 
 function endings(game) {
   return Object.values(game.branches).filter((branch) => branch.ending !== null).map((branch) => {
     const path = pathFor(game, branch);
     const [title, body, gain, cost] = path.endings[branch.ending];
-    return { id: branch.id, path: path.title, title, body, gain, cost, events: branch.events };
+    const aftermath = branch.events.length === path.beats.length ? branch.events.at(-1).outcome : null;
+    return { id: branch.id, path: path.title, title, body, gain, cost, aftermath, events: branch.events };
   });
 }
 
@@ -86,7 +87,7 @@ function choose(game, branch, input) {
   const [choice, effects, outcome] = option;
   applyEffects(branch, effects);
   branch.events.push({ scene: scene.title, choice_id: input.choice_id, choice, effects, outcome, world: { ...branch.world } });
-  if (branch.events.length === pathFor(game, branch).beats.length) branch.ending = Number(input.choice_id);
+  if (branch.events.length === pathFor(game, branch).beats.length) branch.ending = Number(branch.events.at(-2).choice_id);
 }
 
 async function generate(env, name, properties, instructions, context) {
@@ -104,7 +105,7 @@ async function generate(env, name, properties, instructions, context) {
     });
     if (!response.ok) return null;
     const result = await response.json();
-    if (result.status !== 'completed') return null;
+    if (result?.status !== 'completed' || !Array.isArray(result.output)) return null;
     return JSON.parse(result.output.find((item) => item.type === 'message')
       ?.content.find((item) => item.type === 'output_text')?.text);
   } catch {
@@ -127,9 +128,21 @@ async function chat(env, game, branch, npcId, input) {
     { npc, trust: state.trust, scene, events, memories: state.memories, recent: state.messages.slice(-6), text });
   const live = validText(generated?.reply, 720);
   let reply = live ? generated.reply.trim() : npc.voice;
-  if (!live && /\b(goal|want|plan|need)\b/i.test(text)) reply = `My goal is to ${npc.goal[0].toLowerCase()}${npc.goal.slice(1)} ${npc.support}`;
-  else if (!live && /\b(remember|earlier|before|last time)\b/i.test(text) && events.length) reply = `Here’s what I remember: ${events.at(-1)} ${npc.support}`;
-  else if (!live && (state.messages.length || state.trust >= 65)) reply = npc.support;
+  if (!live) {
+    const priorMessage = state.messages.findLast((item) => item.role === 'player');
+    const event = events.at(-1);
+    if (/\b(remember|earlier|before|last time)\b/i.test(text) && (priorMessage || event)) {
+      reply = priorMessage
+        ? `I remember your earlier message: “${priorMessage.text.slice(0, 120)}” ${event ?? npc.support}`
+        : `Here’s what I remember: ${event} ${npc.support}`;
+    } else if (/\b(your goal|your plans?|what (do|did) you (want|need)|why are you)\b/i.test(text)) {
+      reply = `My goal is to ${npc.goal[0].toLowerCase()}${npc.goal.slice(1)} ${npc.support}`;
+    } else if (event && !priorMessage) {
+      reply = `${event} ${npc.support}`;
+    } else if (priorMessage || state.trust >= 65) {
+      reply = npc.support;
+    }
+  }
   state.messages.push({ role: 'player', text }, { role: 'npc', text: reply, mode: live ? 'live' : 'scripted' });
   if (state.messages.length > 6) {
     state.memories = [...state.memories.slice(-3), { note: `You discussed: ${state.messages.at(-8).text.slice(0, 110)}` }];
@@ -153,6 +166,8 @@ async function narrate(env, game, branch) {
   if (result?.location !== scene.location || JSON.stringify(result.npc_ids) !== JSON.stringify(scene.npcs) ||
       JSON.stringify(result.decisions) !== JSON.stringify(scene.choices.map(([label]) => label)) ||
       !Array.isArray(result.proposed_effects) || result.proposed_effects.length ||
+      !Array.isArray(result.references) || result.references.length > 4 ||
+      !result.references.every((reference) => validText(reference, 500)) ||
       !validText(result.title, 120) || !validText(result.narrative, 1400) || !validText(result.dialogue, 420, false)) return;
   branch.narration[scene.index] = { title: result.title, narrative: result.narrative, dialogue: result.dialogue };
 }
@@ -240,11 +255,13 @@ async function gameRoute(request, env, owner, id, tail) {
     const results = endings(game);
     if (!results.length) fail(409, 'Finish a timeline to open the Decision Lab.');
     const { priorities, uncertainty = '', next_step = '' } = await payload(request);
-    const allowed = scenarioFor(game.scenario_id).priorities;
+    const scenario = scenarioFor(game.scenario_id);
+    const allowed = scenario.priorities;
     if (!Array.isArray(priorities) || priorities.length < 1 || priorities.length > 4 ||
         !priorities.every((priority) => allowed.includes(priority)) || !validText(uncertainty, 500, false) ||
         !validText(next_step, 500, false)) fail(422, 'Choose priorities from this scenario.');
-    game.passport = { priorities: [...new Set(priorities)], uncertainty, next_step, timelines: results };
+    game.passport = { priorities: [...new Set(priorities)], uncertainty, next_step, timelines: results,
+      dilemma: scenario.intro, questions: scenario.questions, experiment_title: scenario.experiment.title };
   } else if (tail[0] === 'experiment' && method === 'PUT') {
     if (!game.passport) fail(409, 'Save a Decision Passport to open Reality Bridge.');
     const { checked, status } = await payload(request);

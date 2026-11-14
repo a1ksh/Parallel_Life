@@ -58,7 +58,7 @@ async def generate(model_type: type[BaseModel], instructions: str, context: dict
         text = next(item["text"] for output in data.get("output", []) if output.get("type") == "message"
                     for item in output.get("content", []) if item.get("type") == "output_text")
         return model_type.model_validate_json(text)
-    except (httpx.HTTPError, ValidationError, ValueError, TypeError, KeyError, StopIteration):
+    except (httpx.HTTPError, ValidationError, ValueError, TypeError, KeyError, AttributeError, StopIteration):
         return None
 
 
@@ -89,13 +89,16 @@ async def npc_reply(npc: dict, state: NPCState, scene: dict, events: list[str], 
     )
     if generated:
         return generated.reply, "live"
-    if re.search(r"\b(goal|want|plan|need)\b", player, re.I):
-        return f"What I’m working toward is simple: {npc['goal'][0].lower()}{npc['goal'][1:]} {npc['support']}", "scripted"
     if re.search(r"\b(remember|earlier|before|last time)\b", player, re.I):
+        previous = next((item.text for item in reversed(state.messages) if item.role == "player"), None)
+        if previous:
+            return f"I remember your earlier message: “{previous[:120]}” {events[-1] if events else npc['support']}", "scripted"
         if events:
             return f"Here’s what I remember from this part of the story: {events[-1]} {npc['support']}", "scripted"
-        if recent:
-            return f"We’ve already started talking about this. {npc['support']}", "scripted"
+    if re.search(r"\b(your goal|your plans?|what (do|did) you (want|need)|why are you)\b", player, re.I):
+        return f"What I’m working toward is simple: {npc['goal'][0].lower()}{npc['goal'][1:]} {npc['support']}", "scripted"
+    if events and not recent:
+        return f"{events[-1]} {npc['support']}", "scripted"
     if state.trust >= 65 or recent:
         return npc["support"], "scripted"
     return npc["voice"], "scripted"

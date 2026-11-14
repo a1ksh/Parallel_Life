@@ -25,6 +25,10 @@ const metrics: Record<string, string> = {
 const avatarGlyph = { dawn: "☀", orbit: "◉", night: "☾", ember: "✦" };
 const disclaimer = "Parallel Life is a fictional exploration tool, not a prediction of your future or a substitute for professional advice.";
 
+function SceneArt({ category, className = "" }: { category: Category; className?: string }) {
+  return <div className={`scene-art art-${category} ${className}`} aria-hidden="true" />;
+}
+
 function StartHeader({ eyebrow, title, children }: { eyebrow: string; title: string; children?: ReactNode }) {
   return <div className="page-heading"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1>{children}</div>;
 }
@@ -33,6 +37,7 @@ function ScenarioCards({ select }: { select: (category: Category) => void }) {
   return <div className="scenario-grid">{categories.map((id) => {
     const { title, detail, icon: Icon } = categoryInfo[id];
     return <button type="button" key={id} className={`scenario-card ${id}`} onClick={() => select(id)}>
+      <SceneArt category={id} />
       <div className="scenario-top"><span className="scenario-icon"><Icon size={21} /></span><ArrowDownRight size={20} /></div>
       <div><h3>{title}</h3><p>{detail}</p></div>
     </button>;
@@ -127,6 +132,7 @@ function Chat({ game, branch, scenario, send }: {
   const available = scenario.npcs.filter((npc) => branch.scene?.npcs.includes(npc.id));
   const [selected, setSelected] = useState(available[0]?.id);
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   const { busy, ai } = useGame();
   const npc = available.find((npc) => npc.id === selected) ?? available[0];
   if (!npc) return null;
@@ -135,17 +141,24 @@ function Chat({ game, branch, scenario, send }: {
   const limited = messages.length >= 32;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (text.trim() && await send(npc.id, text.trim())) setText("");
+    if (!text.trim()) return;
+    setSending(true);
+    try {
+      if (await send(npc.id, text.trim())) setText("");
+    } finally {
+      setSending(false);
+    }
   }
   return <aside className="panel chat">
     <h2><MessageCircle size={18} /> Characters in this scene</h2>
     <div className="npc-list">{available.map((item) => <button key={item.id} type="button" onClick={() => setSelected(item.id)}
-      aria-pressed={npc.id === item.id}><span className="npc-avatar">{item.avatar}</span><span>{item.name}</span></button>)}</div>
+      aria-pressed={npc.id === item.id} disabled={sending}><span className={`npc-avatar portrait-${item.id}`} aria-hidden="true">{item.avatar}</span><span>{item.name}</span></button>)}</div>
     <p className="npc-role">{npc.role} · {npc.mood}</p>
     <details className="npc-bio"><summary>About {npc.name}</summary><p>{npc.background}</p><p>{npc.goal}</p></details>
     <p className="small-label">{ai ? "AI conversation available" : "Scripted demo conversation"} · Trust {state?.trust ?? 50}</p>
     {ai && <p className="npc-role">Messages may be sent to the AI provider to write the character’s reply.</p>}
-    <div className="messages" aria-live="polite" aria-label="Conversation" tabIndex={0}>
+    <div className="messages" role="log" aria-live="polite" aria-label="Conversation" tabIndex={0}
+      ref={(node) => { if (node) node.scrollTop = node.scrollHeight; }}>
       {messages.length ? messages.map((message, i) => <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
         key={i} className={`message ${message.role}`}><small>{message.role === "player" ? game.profile.name : `${npc.name}${message.mode === "scripted" ? " · Scripted" : ""}`}</small><p>{message.text}</p></motion.div>)
         : <p className="muted">Ask about their goals or something that happened in this timeline.</p>}
@@ -154,13 +167,14 @@ function Chat({ game, branch, scenario, send }: {
       <label className="sr-only" htmlFor="chat-text">Message {npc.name}</label>
       <textarea id="chat-text" rows={2} maxLength={600} value={text} disabled={limited} onChange={(event) => setText(event.target.value)}
         placeholder={limited ? "Conversation limit reached" : `Talk to ${npc.name.split(" ")[0]}…`} />
-      <Button type="submit" disabled={busy || limited || !text.trim()}>Send <ArrowRight size={15} /></Button>
+      <Button type="submit" disabled={busy || limited || !text.trim()}>{sending ? "Waiting for reply…" : "Send"} <ArrowRight size={15} /></Button>
     </form>
   </aside>;
 }
 
 function Outcome({ ending, expanded = false }: { ending: Ending; expanded?: boolean }) {
   return <article className="panel outcome"><p className="eyebrow">{ending.path}</p><h2>{ending.title}</h2><p>{ending.body}</p>
+    {ending.aftermath && <p className="last-event">{ending.aftermath}</p>}
     <dl className="tradeoffs"><div><dt>What you gained</dt><dd>{ending.gain}</dd></div><div><dt>What it cost</dt><dd>{ending.cost}</dd></div></dl>
     <details open={expanded}><summary>Choices and consequences</summary><ol>{ending.events.map((event, index) =>
       <li key={index}><strong>{event.choice}</strong><p>{event.outcome}</p></li>)}</ol></details>
@@ -192,21 +206,24 @@ function Story({ game, scenario, start, choose, send, open, narrate }: {
   if (!branch || !scene) return <section className="story-page">
     <StartHeader eyebrow={scenario.setting} title={scenario.title}><p>{scenario.intro}</p></StartHeader>
     <p className="avatar-context"><span aria-hidden="true">{avatarGlyph[game.profile.avatar]} </span>Playing as {game.profile.name}, {game.profile.age} · Goal: {game.profile.goal}</p>
-    <p className="small-label mb-2">Scene 1 of 5 · The crossroads</p>
+    <p className="small-label mb-2">The crossroads</p>
     <PathButtons scenario={scenario} start={start} />
   </section>;
   const path = scenario.paths.find((item) => item.id === branch.path_id);
   return <section className="story-layout">
     <div className="panel scene">
-      <div className="chapter"><span>Scene {scene.index + 2} of 5</span><span>{scene.when}</span></div>
-      <div className="chapter-progress"><span style={{ width: `${(scene.index + 2) * 20}%` }} /></div>
+      <SceneArt category={scenario.id} className="scene-cover" />
+      <div className="chapter"><span>Scene {scene.index + 1} of {scene.count}</span><span>{scene.when}</span></div>
+      <div className="chapter-progress"><span style={{ width: `${(scene.index + 1) / scene.count * 100}%` }} /></div>
       <p className="eyebrow"><MapPin size={14} /> {scene.location}</p>
       <h1>{scene.title}</h1><p className="scene-body">{scene.body}</p>
       {scene.last_event && <p className="last-event">{scene.last_event}</p>}
       {scene.dialogue && <blockquote>{scene.dialogue}</blockquote>}
       {ai && !scene.personalized && <Button variant="ghost" disabled={busy} onClick={narrate}><Sparkles size={15} /> Personalize scene</Button>}
       <div className="choice-list">{scene.choices.map((option) => <Button key={option.id} className="choice" variant="outline"
-        disabled={busy} onClick={() => choose(option.id, scene.index)}>{option.label}<ArrowRight size={17} /></Button>)}</div>
+        disabled={busy} onClick={() => choose(option.id, scene.index)}><span><strong>{option.label}</strong>
+          <small>{option.focus.map((key) => metrics[key] ?? "Character trust").filter((item, i, all) => all.indexOf(item) === i).join(" · ")}</small>
+        </span><ArrowRight size={17} /></Button>)}</div>
       <WorldState branch={branch} />
       <p className="small-label">{path?.title}</p>
     </div>
@@ -220,7 +237,7 @@ function TimelineScreen({ game, scenario, start, activate, fork }: {
 }) {
   const busy = useGame((state) => state.busy);
   return <section><StartHeader eyebrow={scenario.title} title="Life Map"><p>Start another path or return to a saved decision to create a separate timeline.</p></StartHeader>
-    <LifeMap game={game} scenario={scenario} onSelect={activate} />
+    <LifeMap game={game} scenario={scenario} onSelect={activate} onFork={fork} />
     <div className="map-details"><div><h2>Start from the crossroads</h2>
       <PathButtons scenario={scenario} start={start} explored={game.branches.map((branch) => branch.path_id)} /></div>
       <div><h2>Saved timelines</h2>
@@ -270,10 +287,12 @@ function DecisionLab({ game, scenario, save, open }: {
   const passport = game.passport;
   function download() {
     if (!passport) return;
-    const text = ["Parallel Life · Decision Passport", scenario.subtitle, scenario.intro,
+    const text = ["Parallel Life · Decision Passport", scenario.subtitle, passport.dilemma || scenario.intro,
       `Priorities: ${passport.priorities.join(", ")}`, ...passport.timelines.map((timeline) =>
-        `${timeline.path} — ${timeline.title}\nGain: ${timeline.gain}\nTrade-off: ${timeline.cost}`),
+        `${timeline.path} — ${timeline.title}\nGain: ${timeline.gain}\nTrade-off: ${timeline.cost}\n${timeline.events.map((event) => `• ${event.choice} — ${event.outcome}`).join("\n")}`),
       `Still uncertain: ${passport.uncertainty || scenario.question}`, `Question: ${scenario.question}`,
+      ...(passport.questions ?? []).map((question) => `Question: ${question}`),
+      `Optional experiment: ${passport.experiment_title || scenario.experiment.title}`,
       `Next step: ${passport.next_step || scenario.experiment.steps[0]}`].join("\n\n");
     const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "decision-passport.txt"; link.click();
@@ -281,19 +300,21 @@ function DecisionLab({ game, scenario, save, open }: {
   }
   return <section className="lab-layout">
     <div><StartHeader eyebrow={scenario.title} title="Decision Lab"><p>{scenario.intro}</p></StartHeader>
-      <div className="reflection-outcomes">{game.endings.map((end) => <Outcome key={end.id} ending={end} />)}</div></div>
+      <div className="reflection-outcomes">{game.endings.map((end) => <Outcome key={end.id} ending={end} expanded />)}</div></div>
     <form className="panel form-grid" onSubmit={(event) => { event.preventDefault(); save({ priorities, uncertainty, next_step: step }); }}>
       <h2>Decision Passport</h2>
       <fieldset><legend>What mattered most to you in this story?</legend><div className="priority-list">{scenario.priorities.map((item) =>
         <label key={item}><input type="checkbox" checked={priorities.includes(item)} onChange={(event) =>
           setPriorities(event.target.checked ? [...priorities, item] : priorities.filter((entry) => entry !== item))} /> {item}</label>)}</div></fieldset>
-      <p className="question">A question to investigate: {scenario.question}</p>
+      <div className="reflection-questions"><h3>Questions to take with you</h3>
+        <ul>{[scenario.question, ...scenario.questions].map((question) => <li key={question}>{question}</li>)}</ul></div>
       <label>What’s still uncertain?<textarea rows={2} maxLength={500} value={uncertainty} onChange={(event) => setUncertainty(event.target.value)} /></label>
       <label>One practical next step<textarea rows={2} maxLength={500} value={step} onChange={(event) => setStep(event.target.value)}
         placeholder={scenario.experiment.steps[0]} /></label>
       <div className="actions"><Button type="submit" disabled={!priorities.length || busy}>Save Passport</Button>
         {passport && <Button variant="outline" onClick={download}>Download</Button>}</div>
       {passport && <><p className="saved" role="status">Passport saved for {passport.timelines.length} explored {passport.timelines.length === 1 ? "timeline" : "timelines"}.</p>
+        <div className="passport-experiment"><small>Optional experiment</small><strong>{scenario.experiment.title}</strong><p>{scenario.experiment.description}</p></div>
         <Button variant="outline" onClick={() => open("bridge")}>Continue to Reality Bridge <ArrowRight size={16} /></Button></>}
     </form>
   </section>;
@@ -386,7 +407,15 @@ export function ParallelLife() {
     if (!game) return false;
     let completed = false;
     await perform(async () => {
-      update(await api<Game>(`/sessions/${game.id}${path}`, method, body));
+      try {
+        update(await api<Game>(`/sessions/${game.id}${path}`, method, body));
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          const latest = await api<Game>(`/sessions/${game.id}`).catch(() => null);
+          if (latest) update(latest);
+        }
+        throw error;
+      }
       if (next) open(next);
       completed = true;
     });
@@ -456,7 +485,7 @@ export function ParallelLife() {
   const key = `${view}:${game?.active_id ?? ""}:${game?.branches.find((item) => item.id === game.active_id)?.events.length ?? ""}`;
   return <>
     <header className="topbar"><div className="frame topbar-inner">
-      <Button variant="ghost" className="wordmark" onClick={() => open("home")}><span aria-hidden="true">◈</span> Parallel Life</Button>
+      <Button variant="ghost" className="wordmark" disabled={busy} onClick={() => open("home")}><span aria-hidden="true">◈</span> Parallel Life</Button>
       <nav aria-label="Main navigation">
         {game && view !== "story" && <Button variant="ghost" disabled={busy} onClick={() => open("story")}>Resume</Button>}
         {profile && view === "home" && <Button variant="ghost" disabled={busy} onClick={() => open("scenarios")}>New story</Button>}

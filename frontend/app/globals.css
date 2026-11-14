@@ -70,6 +70,15 @@
 .scenario-icon { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid currentColor; border-radius: 50%; }
 .scenario-card h3 { font: 400 2rem/1 var(--display); }
 .scenario-card p { margin-top: 7px; color: var(--muted); font-size: .85rem; }
+.scenario-card { position: relative; isolation: isolate; overflow: hidden; }
+.scene-art { background-position: center; background-size: cover; background-color: #202739; }
+.art-career { background-image: url('/art/career.jpg'); }
+.art-education { background-image: url('/art/education.jpg'); }
+.art-relationships { background-image: url('/art/relationships.jpg'); }
+.scenario-card > .scene-art { position: absolute; inset: 0; z-index: -2; opacity: .8; transition: transform .3s ease; }
+.scenario-card::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, #131421 4%, #131421d9 39%, #13142125 100%); }
+.scenario-card:hover > .scene-art { transform: scale(1.04); }
+.scenario-card p { color: #d4d1e0; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: clamp(17px, 3.7vw, 34px); min-width: 0; }
 .page-heading { margin: 4px 0 25px; }
 .page-heading h1 { font-size: clamp(3.1rem, 6.8vw, 5.25rem); }
@@ -102,6 +111,7 @@ summary { color: var(--primary); font-size: .85rem; font-weight: 650; }
 .story-page > .actions, .scene > .choice-list, .map-details h2 + * { margin-top: 16px; }
 .story-layout, .lab-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr); gap: 14px; align-items: start; }
 .scene h1 { font-size: clamp(2.9rem, 6vw, 5.4rem); }
+.scene-cover { height: clamp(100px, 16vw, 180px); margin: 0 0 18px; border-radius: 6px; }
 .chapter { display: flex; justify-content: space-between; color: var(--muted); font-size: .77rem; }
 .chapter-progress { height: 3px; border-radius: 4px; background: var(--line); margin: 8px 0 23px; }
 .chapter-progress span { display: block; height: 100%; background: var(--primary); transition: width .3s ease; }
@@ -121,6 +131,17 @@ meter, progress { width: 100%; accent-color: var(--primary); }
 .npc-list button { display: flex; gap: 5px; align-items: center; border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; font-size: .73rem; }
 .npc-list [aria-pressed=true] { background: #2a2441; border-color: #8976b5; }
 .npc-avatar { width: 25px; height: 25px; font-size: .62rem; }
+.npc-avatar { width: 30px; height: 30px; background-size: cover; background-position: center; }
+.npc-avatar[class*="portrait-"] { color: transparent; }
+.portrait-emma { background-image: url('/art/emma.jpg'); }
+.portrait-daniel { background-image: url('/art/daniel.jpg'); }
+.portrait-rachel { background-image: url('/art/rachel.jpg'); }
+.portrait-olivia { background-image: url('/art/olivia.jpg'); }
+.portrait-sophia { background-image: url('/art/sophia.jpg'); }
+.portrait-alex { background-image: url('/art/alex.jpg'); }
+.portrait-jordan { background-image: url('/art/jordan.jpg'); }
+.portrait-mia { background-image: url('/art/mia.jpg'); }
+.portrait-taylor { background-image: url('/art/taylor.jpg'); }
 .npc-role, .npc-bio p { color: var(--muted); font-size: .79rem; }
 .messages { display: grid; align-content: start; gap: 7px; max-height: 285px; min-height: 110px; overflow-y: auto; padding: 9px; border: 1px solid var(--line); border-radius: 6px; background: #10121e; }
 .message { background: #232039; padding: 7px 8px; border-radius: 5px; overflow-wrap: anywhere; font-size: .79rem; }
@@ -145,11 +166,20 @@ meter, progress { width: 100%; accent-color: var(--primary); }
 .flow { height: 360px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-bottom: 25px; background: #141524; }
 .react-flow__node-default { color: var(--foreground) !important; background: #27243d !important; border-color: #64577e !important; border-radius: 7px !important; }
 .react-flow__node.current-node { border-color: var(--gold) !important; }
+.react-flow__node.unexplored-node { border-style: dashed !important; color: var(--muted) !important; }
+.react-flow__node.checkpoint-node { width: 112px; border-color: #8274a7 !important; font-size: 10px; }
+.react-flow__node strong, .react-flow__node small { display: block; }
+.react-flow__node small { color: var(--muted); }
+.react-flow__node[tabindex="0"] { cursor: pointer; }
 .react-flow__controls button { color: #171128 !important; }
 .reflection-outcomes, .checklist, .priority-list { display: grid; gap: 8px; }
 .checklist label, .priority-list label { display: flex; gap: 9px; align-items: baseline; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
 .checklist label { cursor: pointer; min-height: 44px; }
 .question, .saved { color: #a1dec4; font-size: .84rem; }
+.reflection-questions, .passport-experiment { background: #202235; padding: 11px 13px; border-radius: 6px; font-size: .84rem; }
+.reflection-questions ul { margin: 6px 0 0; padding-left: 16px; list-style: disc; color: var(--muted); }
+.passport-experiment strong, .passport-experiment small { display: block; }
+.passport-experiment small, .passport-experiment p { color: var(--muted); }
 .universe-list { display: grid; gap: 8px; }
 .universe { display: flex; flex-wrap: wrap; gap: 13px; align-items: center; justify-content: space-between; }
 .universe h2 { font-size: 2rem; }
@@ -174,6 +204,8 @@ meter, progress { width: 100%; accent-color: var(--primary); }
   .section-heading span { display: none; }
   .footer { align-items: start; flex-direction: column; padding-block: 12px; gap: 3px; }
   .journey-nav .button { padding-inline: 6px; }
+  .scene-cover { height: 118px; }
+  .flow { height: 290px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }

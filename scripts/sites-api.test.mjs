@@ -31,7 +31,7 @@ function testDatabase() {
       }
     },
   };
-  return { adapter, close: () => sql.close() };
+  return { adapter, sql, close: () => sql.close() };
 }
 
 test('the hosted Worker serves Next.js and retains separate timelines, NPC memories, and progress', async () => {
@@ -70,10 +70,21 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     const fork = await call(session + '/branches', 'POST', { parent_id: source, checkpoint: 0 });
     const forkId = fork.active_id;
     assert.equal(fork.branches.find((branch) => branch.id === forkId).npcs.emma.messages.length, 2);
-    for (let i = 0; i < 4; i++) await call(path(forkId) + '/choices', 'POST', { scene_index: i, choice_id: '1' });
+    for (let i = 0; i < 5; i++) await call(path(forkId) + '/choices', 'POST', { scene_index: i, choice_id: '1' });
     const reopened = await call(path(source) + '/active', 'PUT');
     assert.deepEqual(reopened.branches.find((branch) => branch.id === source).npcs.emma.messages, original.npcs.emma.messages);
     assert.equal(reopened.endings.length, 1);
+    assert.equal(reopened.endings[0].events.length, 5);
+    assert.ok(reopened.endings[0].aftermath);
+    // A timeline already completed before the new scene stays complete.
+    const saved = JSON.parse(db.sql.prepare('SELECT data FROM game_sessions WHERE id = ?').get(game.id).data);
+    saved.branches[forkId].events.pop();
+    saved.branches[forkId].checkpoints.pop();
+    db.sql.prepare('UPDATE game_sessions SET data = ? WHERE id = ?').run(JSON.stringify(saved), game.id);
+    const oldEnding = (await call(session)).endings[0];
+    assert.equal(oldEnding.title, reopened.endings[0].title);
+    assert.equal(oldEnding.events.length, 4);
+    assert.equal(oldEnding.aftermath, null);
     await call(session, 'GET', undefined, 404, crypto.randomUUID());
     await call(session + '/reflection', 'PUT', { priorities: ['Independence'] });
     await call(session + '/experiment', 'PUT', { checked: [0], status: 'active' });
