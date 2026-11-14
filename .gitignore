@@ -1,4 +1,12 @@
 /dist/
 /.env
 /.env.*
-/node_modules/
+node_modules/
+/frontend/.next/
+/frontend/out/
+*.tsbuildinfo
+__pycache__/
+.pytest_cache/
+.venv/
+*.sqlite*
+!/.env.example

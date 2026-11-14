@@ -1,0 +1,9 @@
+.git
+.env*
+**/node_modules
+**/.next
+**/out
+**/__pycache__
+**/.pytest_cache
+**/*.sqlite*
+dist
