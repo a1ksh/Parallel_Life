@@ -19,6 +19,7 @@ export function PersonalStory({ locale }: { locale: Locale }) {
   const [selected, setSelected] = useState<PersonalStoryData>();
   const [branch, setBranch] = useState<Branch>("first");
   const [busy, setBusy] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
   const [error, setError] = useState(false);
   const draftKey = "personal-story-draft-" + locale;
 
@@ -34,6 +35,7 @@ export function PersonalStory({ locale }: { locale: Locale }) {
   }
   useEffect(() => {
     try { const saved = JSON.parse(localStorage.getItem(draftKey) || "null"); if (saved) setBrief(saved); } catch {}
+    setDraftReady(true);
     void run(refresh);
   }, [draftKey]);
 
@@ -65,7 +67,7 @@ export function PersonalStory({ locale }: { locale: Locale }) {
     {!selected ? <form className="panel form-grid" onSubmit={e => { e.preventDefault(); void run(createStory); }}>
       <p>{t("Enter two paths and one limit. Gemini writes a scene for each path, with two actions and their consequences.")}</p>
       {(["first","second","constraint"] as const).map((field,i) => <label key={field}>{t((["My first option","My second option","My real constraint"] as const)[i])}
-        <textarea rows={2} minLength={3} maxLength={350} required value={brief[field]} onChange={e => edit(field,e.target.value)}/></label>)}
+        <textarea disabled={!draftReady || busy} rows={2} minLength={3} maxLength={350} required value={brief[field]} onChange={e => edit(field,e.target.value)}/></label>)}
       {brief.first.trim() && brief.first.trim().toLowerCase() === brief.second.trim().toLowerCase() && <p role="status">{t("Enter two different options.")}</p>}
       <small>{t("Your answers go to Gemini. Reopen the story in this browser.")}</small>
       <Button type="submit" disabled={busy || Object.values(brief).some(s => s.trim().length < 3) || brief.first.trim().toLowerCase() === brief.second.trim().toLowerCase()}>{t(busy ? "Writing both paths…" : "Generate my two paths")}</Button>
