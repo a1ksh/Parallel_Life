@@ -1270,5 +1270,57 @@
   "Personal scenario for ₸1,490 · interest survey": {
     "kk": "Жеке оқиғаға 1 490 ₸ · сауалнама",
     "ru": "Личная история за 1 490 ₸ · опрос"
+  },
+  "My first option": {
+    "ru": "Мой первый вариант",
+    "kk": "Бірінші нұсқам"
+  },
+  "My second option": {
+    "ru": "Мой второй вариант",
+    "kk": "Екінші нұсқам"
+  },
+  "My real constraint": {
+    "ru": "Моё ограничение",
+    "kk": "Менің шектеуім"
+  },
+  "Enter two different options.": {
+    "ru": "Введи два разных варианта.",
+    "kk": "Екі түрлі нұсқа енгіз."
+  },
+  "Generate my two paths": {
+    "ru": "Создать обе ветки",
+    "kk": "Екі тармақты жасау"
+  },
+  "Writing both paths…": {
+    "ru": "Gemini пишет обе ветки…",
+    "kk": "Gemini екі тармақты жазып жатыр…"
+  },
+  "Back to my stories": {
+    "ru": "К моим историям",
+    "kk": "Оқиғаларыма оралу"
+  },
+  "My personal stories": {
+    "ru": "Мои личные истории",
+    "kk": "Менің жеке оқиғаларым"
+  },
+  "Personal story": {
+    "kk": "Жеке оқиға",
+    "ru": "Личная история"
+  },
+  "Refresh": {
+    "kk": "Жаңарту",
+    "ru": "Обновить"
+  },
+  "Could not load the story. Your draft is saved. Try again in a minute.": {
+    "kk": "Оқиға ашылмады. Жоба сақталды. Бір минуттан кейін қайталап көр.",
+    "ru": "Не удалось открыть историю. Черновик сохранён. Попробуй ещё раз через минуту."
+  },
+  "Enter two paths and one limit. Gemini writes a scene for each path, with two actions and their consequences.": {
+    "kk": "Екі нұсқа мен бір шектеуді жаз. Gemini әр нұсқаға екі шешімі мен салдары бар көрініс жазады.",
+    "ru": "Введи два варианта и одно ограничение. Gemini напишет для каждого варианта сцену с двумя решениями и их последствиями."
+  },
+  "Your answers go to Gemini. Reopen the story in this browser.": {
+    "kk": "Жауаптарың Gemini-ге жіберіледі. Оқиғаны осы браузерде қайта аша аласың.",
+    "ru": "Твои ответы получит Gemini. Историю можно снова открыть в этом браузере."
   }
 }

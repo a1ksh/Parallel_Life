@@ -83,8 +83,9 @@ async def generate(kind: str, context: dict, blocked: str | None, locale: str = 
     started = monotonic()
     result, status, usage = None, "invalid_output", {}
     try:
-        async with asyncio.timeout(POLICY["timeout_ms"] / 1000):
-            async with httpx.AsyncClient() as client:
+        timeout = 50 if kind == "personal" else POLICY["timeout_ms"] / 1000
+        async with asyncio.timeout(timeout):
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(url, json=payload, headers={"Authorization": f"Bearer {key}"})
                 response.raise_for_status()
         data = response.json()

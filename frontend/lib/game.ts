@@ -84,13 +84,13 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+export async function api<T>(path: string, method = "GET", body?: unknown, timeoutMs = 15000): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${base}${path}`, {
       method, headers: { "Content-Type": "application/json", "X-Guest-Token": guestToken() },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
     throw new Error("The story server couldn’t be reached. Check your connection and try again.");

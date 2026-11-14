@@ -86,7 +86,7 @@ function ScenarioCards({ select, continuing }: { select: (category: Category) =>
 }
 
 function Home({ start, continuing, resume }: { start: (category?: Category) => void; continuing?: Category; resume: () => void }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   return <>
     <section className="hero">
       <div className="hero-image" />
@@ -100,6 +100,7 @@ function Home({ start, continuing, resume }: { start: (category?: Category) => v
     </section>
     <section id="story-catalog" className="catalog"><div className="section-heading"><h2>{t("Which decision would you like to try?")}</h2><span>{t("Three playable stories")}</span></div>
       <ScenarioCards continuing={continuing} select={(category) => category === continuing ? resume() : start(category)} />
+      <a className="button button-outline" href={`/${locale}/personal/`}>{t("Personal story")}</a>
     </section>
   </>;
 }

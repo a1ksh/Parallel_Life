@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
+from app.api.personal import router as personal_router
 from app.models.database import open_database
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +42,7 @@ def create_app(database_url: str | None = None, serve_frontend: bool = True):
         return await call_next(request)
 
     application.include_router(router)
+    application.include_router(personal_router)
     legacy = ROOT / "public"
     if serve_frontend and legacy.is_dir():
         @application.get("/legacy/api/status", include_in_schema=False)

@@ -61,3 +61,13 @@ def open_database(url: str | None = None):
 
 def owner_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+class PersonalStoryRecord(Base):
+    __tablename__ = "personal_stories"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner: Mapped[str] = mapped_column(String(64), index=True)
+    brief: Mapped[dict] = mapped_column(JSON)
+    story: Mapped[dict] = mapped_column(JSON)
+    picks: Mapped[dict] = mapped_column(JSON, default=dict)

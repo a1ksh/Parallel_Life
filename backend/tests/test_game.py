@@ -435,3 +435,34 @@ def test_life_priority_weights_are_validated_and_retained(game_api):
     profile = client.post("/api/profiles", json={**fields, "life_priorities": weights}).json()
     session = client.post("/api/sessions", json={"profile_id": profile["id"], "scenario_id": "career"}).json()
     assert client.get("/api/sessions/" + session["id"]).json()["profile"]["life_priorities"] == weights
+
+
+def test_personal_story_is_owned_persistent_and_retryable(game_api, monkeypatch):
+    from app.api import personal
+
+    client, _, _ = game_api
+    monkeypatch.setenv("PARALLEL_LIFE_AI_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    monkeypatch.setenv("PARALLEL_LIFE_AI_ENABLED", "1")
+    body = {"first": "Stay at work", "second": "Take orders", "constraint": "Two evenings", "locale": "en"}
+    url = "/api/personal/" + str(uuid4())
+    calls = []
+
+    async def generate(kind, brief, blocked, locale):
+        calls.append(brief)
+        if len(calls) == 1:
+            return None, "unavailable"
+        return {key: key for key in ai_limits.POLICY["outputs"]["personal"]["fields"]}, None
+
+    monkeypatch.setattr(personal, "generate", generate)
+    assert client.post(url, json={**body, "second": body["first"]}).status_code == 422
+    assert client.post(url, json=body).status_code == 503
+    story = client.post(url, json=body).json()
+    assert client.post(url, json=body).json() == story
+    assert calls == [body, body]
+    assert client.put(url + "/pick/first/a").status_code == 200
+    assert client.put(url + "/pick/second/b").json()["picks"] == {"first": "a", "second": "b"}
+    assert client.get("/api/personal").json()[0]["story"] == story["story"]
+    stranger = {"X-Guest-Token": str(uuid4())}
+    assert client.get("/api/personal", headers=stranger).json() == []
+    assert client.put(url + "/pick/first/b", headers=stranger).status_code == 404

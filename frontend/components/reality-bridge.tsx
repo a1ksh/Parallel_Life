@@ -18,14 +18,12 @@ export function RealityBridge({ game, scenario, save, open }: {
   const busy = useGame((state) => state.busy);
   const { passport, experiment } = game;
   const { plan, reflection } = experiment;
-  const pass_interest = experiment.personal_1490_interest;
   const [action, setAction] = useState(plan?.action ?? passport?.next_step ?? "");
   const [deadline, setDeadline] = useState(plan?.deadline ?? nextWeek);
   const [signal, setSignal] = useState(plan?.signal ?? "");
   const [notes, setNotes] = useState(reflection ?? { outcome: "", surprise: "", priority: "" });
   const [editing, setEditing] = useState(!plan);
   const [editingNotes, setEditingNotes] = useState(!reflection);
-  const [showPass, setShowPass] = useState(false);
   if (!passport) return <section className="panel empty"><h1>{t("Reality Bridge")}</h1>
     <p>{t("Save a Decision Passport to open Reality Bridge.")}</p>
     <Button onClick={() => open(game.endings.length ? "lab" : "story")}>{t("Continue")}</Button></section>;
@@ -34,21 +32,11 @@ export function RealityBridge({ game, scenario, save, open }: {
     ["surprise", t("What surprised you?")],
     ["priority", t("How did your priorities change or stay the same?")],
   ] as const;
-  if (showPass) return <section className="narrow panel form-grid">
-    <h1>{t("A scenario about your own decision")}</h1>
-    <p>{t("The stories you played, both endings and your Decision Passport are free.")}</p>
-    <p>{t("Would you pay ₸1,490 once for a playable scenario written around your own two options and one real constraint?")}</p>
-    <p>{t("For example: stay at work or start taking orders with only two evenings a week. Play through both schedules and ask each version of yourself what had to give.")}</p>
-    <p>{t("This is an interest survey. We only save your answer in this universe. No purchase, subscription or charge.")}</p>
-    <div className="actions"><Button disabled={busy} aria-pressed={pass_interest === "interested"} onClick={() => void save({ personal_1490_interest: "interested" })}>{t("Interested at this price")}</Button>
-      <Button variant="outline" disabled={busy} aria-pressed={pass_interest === "declined"} onClick={() => void save({ personal_1490_interest: "declined" })}>{t("I would pass")}</Button></div>
-    {pass_interest && <p role="status">{pass_interest === "interested" ? t("Your response: interested.") : t("Your response: would pass.")}</p>}
-    <Button variant="ghost" onClick={() => setShowPass(false)}>{t("Back to Reality Bridge")}</Button></section>;
   const constraint = passport.constraint || game.profile.constraint;
   return <section>
     <header className="page-heading"><p className="eyebrow">{t("Reality Bridge")}</p><h1>{t("Your seven-day experiment")}</h1>
       <p>{scenario.experiment.description}</p>
-      <Button variant="ghost" onClick={() => setShowPass(true)}>{t("Personal scenario for ₸1,490 · interest survey")}</Button></header>
+      <a href={`/${locale}/personal/`}>{t("Personal story")}</a></header>
     <div className="lab-layout"><div className="form-grid">
       {experiment.status === "skipped" ? <div className="panel form-grid"><p role="status">{t("Experiment skipped.")}</p>
         <Button variant="outline" disabled={busy} onClick={() => void save({ status: "active" })}>{t("Reopen experiment")}</Button></div> :
