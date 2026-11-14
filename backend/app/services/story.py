@@ -10,7 +10,7 @@ from pydantic import ConfigDict, StringConstraints, create_model
 from typing_extensions import Annotated
 
 from app.models.schemas import NPCState
-from app.services.ai_limits import POLICY
+from app.services.ai_limits import POLICY, provider_key
 from app.services.locales import LOCALES, authored
 
 logger = logging.getLogger("uvicorn.error.parallel_life.ai")
@@ -52,7 +52,7 @@ async def generate(kind: str, context: dict, blocked: str | None, locale: str = 
     if blocked:
         logger.info("ai kind=%s result=%s", kind, blocked)
         return None, blocked
-    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    key = provider_key()
     if not key:
         return None, "disabled"
     model_type = OUTPUT_MODELS[kind]
@@ -69,16 +69,32 @@ async def generate(kind: str, context: dict, blocked: str | None, locale: str = 
         "input": json.dumps(context, ensure_ascii=False),
         "text": {"format": {"type": "json_schema", "name": kind, "strict": True, "schema": schema}},
     }
+    gemini = os.getenv("PARALLEL_LIFE_AI_PROVIDER") == "gemini"
+    url = PROVIDER_URL
+    if gemini:
+        url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        payload = {
+            "model": os.getenv("GEMINI_MODEL") or "gemini-3.5-flash-lite",
+            "messages": [{"role": "system", "content": payload["instructions"]},
+                         {"role": "user", "content": payload["input"]}],
+            "max_tokens": payload["max_output_tokens"],
+            "response_format": {"type": "json_schema", "json_schema": {"name": kind, "schema": schema}},
+        }
     started = monotonic()
     result, status, usage = None, "invalid_output", {}
     try:
         async with asyncio.timeout(POLICY["timeout_ms"] / 1000):
             async with httpx.AsyncClient() as client:
-                response = await client.post(PROVIDER_URL, json=payload, headers={"Authorization": f"Bearer {key}"})
+                response = await client.post(url, json=payload, headers={"Authorization": f"Bearer {key}"})
                 response.raise_for_status()
         data = response.json()
         usage = data.get("usage") or {}
-        if data.get("status") == "completed":
+        if gemini:
+            choice = next(iter(data.get("choices") or []), {})
+            if choice.get("finish_reason") == "stop":
+                result = model_type.model_validate_json(choice["message"]["content"]).model_dump()
+                status = "live"
+        elif data.get("status") == "completed":
             content = [item for output in data.get("output", []) if output.get("type") == "message"
                        for item in output.get("content", [])]
             texts = [item["text"] for item in content if item.get("type") == "output_text"]

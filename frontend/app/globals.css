@@ -216,3 +216,11 @@ meter, progress { width: 100%; accent-color: var(--primary); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
 }
+
+.personal-context, .divergence, .matrix { margin-block: 12px; padding: 16px; overflow-wrap: anywhere; }
+.personal-context h3, .personal-context p, .matrix p { margin-block: 6px; }
+.divergence .compare-grid { margin: 12px 0 0; }
+.matrix { overflow-x: auto; max-width: 100%; }
+.matrix table { border-collapse: collapse; font-size: .86rem; width: 100%; }
+.matrix th, .matrix td { padding: 9px; text-align: start; vertical-align: top; border-bottom: 1px solid var(--line); min-width: 8rem; }
+.lab-layout > div { min-width: 0; }

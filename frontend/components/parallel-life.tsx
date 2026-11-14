@@ -12,10 +12,11 @@ import {
   Compass, GitFork, GraduationCap, Heart, Layers, MapPin, MessageCircle, Sparkles, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RealityBridge } from "@/components/reality-bridge";
 import { LifeMap } from "@/components/life-map";
 import {
   activeKey, ApiError, api, avatars, categories, perform, useGame,
-  type Branch, type Category, type Ending, type Game, type Profile, type Scenario, type Universe, type View,
+  type ValueId, type Branch, type Category, type Ending, type Game, type Profile, type Scenario, type Universe, type View,
 } from "@/lib/game";
 
 const categoryInfo = {
@@ -27,6 +28,21 @@ const metrics = {
   career: "Career", finances: "Finances", freedom: "Freedom", knowledge: "Knowledge",
   wellbeing: "Well-being", social: "Connections",
 } as const;
+const valueIds = Object.keys(metrics) as ValueId[];
+const fictional = {
+  career: ["Should I keep my salary or try my own business?", "I need a steady income to pay rent."],
+  education: ["Should I study abroad or keep learning close to home?", "I can only afford one semester away."],
+  relationships: ["Should we move together or keep separate homes?", "I need to stay close to my family."],
+} as const;
+
+function PersonalContext({ profile }: { profile: Profile }) {
+  const { t } = useTranslation();
+  if (!profile.dilemma) return null;
+  return <div className="panel personal-context"><h3>{t("Your dilemma")}</h3><p>{profile.dilemma}</p>
+    <p><strong>{t("Important constraint")}</strong> · {profile.constraint}</p>
+    <p><strong>{t("Values")}</strong> · {profile.selected_values?.map(id => t(metrics[id])).join(", ")}</p></div>;
+}
+
 const avatarGlyph = { dawn: "☀", orbit: "◉", night: "☾", ember: "✦" };
 const avatarLabels = { dawn: "Dawn", orbit: "Orbit", night: "Night", ember: "Ember" } as const;
 const screens: View[] = ["home", "onboarding", "scenarios", "story", "map", "compare", "lab", "bridge", "universes"];
@@ -77,18 +93,20 @@ function Home({ start, continuing, resume }: { start: (category?: Category) => v
 function Onboarding({ category, onSave }: { category: Category; onSave: (profile: Omit<Profile, "id">) => void }) {
   const { t, story } = useTranslation();
   const [avatar, setAvatar] = useState<Profile["avatar"]>("dawn");
-  const [invalid, setInvalid] = useState<"age" | "required" | null>(null);
+  const [invalid, setInvalid] = useState<"age" | "values" | "required" | null>(null);
   const busy = useGame((state) => state.busy);
+  const [selected, setSelected] = useState<ValueId[]>([]);
   function quickStart() {
     onSave({ name: "Avery", age: categoryInfo[category].age, avatar: "orbit",
       situation: "At a turning point", goal: "Explore the trade-offs before deciding", category,
-      traits: "", values: "", background: "" });
+      traits: "", values: "", background: "", dilemma: t(fictional[category][0]), constraint: t(fictional[category][1]),
+      selected_values: category === "career" ? ["finances", "freedom"] : category === "education" ? ["knowledge", "finances"] : ["social", "freedom"] });
   }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const field = (key: string) => String(data.get(key) ?? "").trim();
-    for (const key of ["name", "situation", "goal", "age"]) {
+    for (const key of ["name", "age", "dilemma", "constraint"]) {
       const age = Number(field("age"));
       if (key === "age" ? !Number.isInteger(age) || age < 18 || age > 120 : !field(key)) {
         setInvalid(key === "age" ? "age" : "required");
@@ -96,15 +114,20 @@ function Onboarding({ category, onSave }: { category: Category; onSave: (profile
         return;
       }
     }
+    if (selected.length < 2) {
+      setInvalid("values");
+      event.currentTarget.querySelector<HTMLInputElement>('input[name="personal-value"]')?.focus();
+      return;
+    }
     setInvalid(null);
-    onSave({ name: field("name"), age: Number(field("age")), avatar, situation: field("situation"),
-      goal: field("goal"), category: field("category") as Category, traits: field("traits"),
-      values: field("values"), background: field("background") });
+    onSave({ name: field("name"), age: Number(field("age")), avatar, situation: field("situation") || "At a turning point",
+      goal: field("goal") || "Explore the trade-offs before deciding", dilemma: field("dilemma"), constraint: field("constraint"), selected_values: selected, category: field("category") as Category, traits: field("traits"),
+      values: selected.map(id => metrics[id]).join(", "), background: field("background") });
   }
   return <section className="narrow">
     <StartHeader eyebrow={t("Your avatar")} title={t("Who will you play?")}><p>{t("Use a fictional profile or a name and details you’re comfortable sharing.")}</p></StartHeader>
     <form className="panel form-grid" onSubmit={submit} noValidate onInput={() => setInvalid(null)}>
-      {invalid && <p className="error" role="alert">{invalid === "age" ? t("Enter an age between 18 and 120.") : t("Fill out this field.")}</p>}
+      {invalid && <p className="error" role="alert">{invalid === "age" ? t("Enter an age between 18 and 120.") : invalid === "values" ? t("Choose two or three values.") : t("Fill out this field.")}</p>}
       <fieldset><legend>{t("Avatar")}</legend><div className="avatar-row">{avatars.map((item) =>
         <button key={item} type="button" className={`avatar ${item}`} aria-pressed={item === avatar}
           aria-label={t(avatarLabels[item])} onClick={() => setAvatar(item)}>{avatarGlyph[item]}</button>)}</div></fieldset>
@@ -112,14 +135,18 @@ function Onboarding({ category, onSave }: { category: Category; onSave: (profile
         <label>{t("Display name")}<input name="name" maxLength={120} required /></label>
         <label>{t("Age")}<input name="age" type="number" min={18} max={120} defaultValue={categoryInfo[category].age} required /></label>
       </div>
-      <label>{t("Current work or study situation")}<input name="situation" maxLength={120} required /></label>
-      <label>{t("Main personal goal")}<input name="goal" maxLength={120} required /></label>
+      <label>{t("Your dilemma")}<input name="dilemma" maxLength={300} required placeholder={t(fictional[category][0])} /></label>
+      <label>{t("Important constraint")}<input name="constraint" maxLength={300} required placeholder={t(fictional[category][1])} /></label>
+      <fieldset><legend>{t("Choose two or three values.")}</legend><div className="priority-list">{valueIds.map(id =>
+        <label key={id}><input type="checkbox" name="personal-value" checked={selected.includes(id)}
+          disabled={selected.length === 3 && !selected.includes(id)} onChange={e => setSelected(e.target.checked ? [...selected, id] : selected.filter(item => item !== id))} /> {t(metrics[id])}</label>)}</div></fieldset>
       <label>{t("Preferred story")}<select name="category" defaultValue={category}>{categories.map((id) =>
         <option value={id} key={id}>{story(categoryInfo[id].title)}</option>)}</select></label>
       <details><summary>{t("Optional character details")}</summary>
         <div className="form-grid optional-fields">
           <label>{t("Personality traits")}<input name="traits" maxLength={180} /></label>
-          <label>{t("Values")}<input name="values" maxLength={180} /></label>
+          <label>{t("Current work or study situation")}<input name="situation" maxLength={120} /></label>
+          <label>{t("Main personal goal")}<input name="goal" maxLength={120} /></label>
           <label>{t("Fictional background")}<textarea name="background" maxLength={300} rows={2} /></label>
         </div>
       </details>
@@ -236,6 +263,8 @@ function Story({ game, scenario, start, choose, send, open, narrate }: {
   </section>;
   if (!branch || !scene) return <section className="story-page">
     <StartHeader eyebrow={scenario.setting} title={scenario.title}><p>{scenario.intro}</p></StartHeader>
+    <PersonalContext profile={game.profile} />
+    <p>{t("In this story you can explore {paths}. Which path would test your priorities?", { paths: scenario.paths.map(path => path.short).join(" / ") })}</p>
     <p className="avatar-context"><span aria-hidden="true">{avatarGlyph[game.profile.avatar]} </span>{t("Playing as {name}, {age} · Goal: {goal}", { name: game.profile.name, age: game.profile.age, goal: story(game.profile.goal) })}</p>
     <p className="small-label mb-2">{t("The crossroads")}</p>
     <PathButtons scenario={scenario} start={start} />
@@ -264,7 +293,37 @@ function Story({ game, scenario, start, choose, send, open, narrate }: {
   </section>;
 }
 
-function TimelineScreen({ game, scenario, start, activate, fork }: {
+type AskSelf = (branchId: string, index: number, text: string) => Promise<boolean>;
+
+function OtherSelf({ game, branch, ask }: { game: Game; branch: Branch; ask: AskSelf }) {
+  const { t } = useTranslation();
+  const [index, setIndex] = useState(branch.events.length - 1);
+  const [question, setQuestion] = useState("");
+  const busy = useGame(state => state.busy);
+  async function send(text: string) {
+    if (!busy && text.trim() && await ask(branch.id, index, text.trim())) setQuestion("");
+  }
+  return <details className="panel timeline-item"><summary>{t("Talk to my other self")}</summary>
+    <label>{t("Which decision?")}<select value={index} disabled={busy} onChange={e => setIndex(Number(e.target.value))}>
+      {branch.events.map((event, i) => <option key={i} value={i}>{i + 1}. {event.choice}</option>)}
+    </select></label>
+    <div role="log" aria-live="polite">{(game.self_dialogues?.[branch.id] ?? []).map((turn, i) =>
+      <article className="panel" key={i}><small>{turn.scene_index + 1}. {branch.events[turn.scene_index]?.scene} · {branch.events[turn.scene_index]?.choice}</small>
+        <p lang={turn.locale}><strong>{turn.question}</strong></p><p lang={turn.locale}>{turn.reply}</p>
+        <small>{t("My other self")} · {t(turn.mode === "live" ? "AI reply" : "From the timeline journal")}</small>
+      </article>)}</div>
+    <div className="actions">{(["Why did you make this choice?", "What did it lead to?", "What did it cost?", "Do you regret this choice?", "What remains unknown?"] as const).map(key =>
+      <Button key={key} variant="outline" disabled={busy} onClick={() => void send(t(key))}>{t(key)}</Button>)}</div>
+    <form className="chat-form" onSubmit={e => { e.preventDefault(); void send(question); }}>
+      <label>{t("Ask about this decision")}<textarea maxLength={600} rows={2} value={question}
+        disabled={busy} onChange={e => setQuestion(e.target.value)} /></label>
+      <Button type="submit" disabled={busy || !question.trim()}>{t("Ask")}</Button>
+    </form>
+  </details>;
+}
+
+function TimelineScreen({ game, scenario, start, activate, fork, ask }: {
+  ask: AskSelf;
   game: Game; scenario: Scenario; start: (id: string) => void; activate: (id: string) => void;
   fork: (id: string, checkpoint: number) => void;
 }) {
@@ -280,34 +339,75 @@ function TimelineScreen({ game, scenario, start, activate, fork }: {
           <h3>{scenario.paths.find((path) => path.id === branch.path_id)?.short} · {t("Timeline {number}", { number: i + 1 })}</h3>
           <p className="muted">{branch.ending === null ? t("In progress · decisions: {count}", { count: branch.events.length }) : t("Finished")}</p>
           <Button variant="outline" disabled={busy} onClick={() => activate(branch.id)}>{t("Open timeline")}</Button>
-          {branch.events.length > 0 && <details><summary>{t("Branch from a saved decision")}</summary><ol>
+          {branch.events.length > 0 && <details open><summary>{t("Branch from a saved decision")}</summary><ol>
             {branch.events.map((event, index) => <li key={index}><Button variant="ghost" disabled={busy} onClick={() => fork(branch.id, index)}>
-              <GitFork size={14} /> {event.scene}</Button></li>)}</ol></details>}
+              <GitFork size={14} /> {t("Replay {scene}", { scene: event.scene })} · {event.choice}</Button></li>)}</ol></details>}
+          {branch.events.length > 0 && <OtherSelf game={game} branch={branch} ask={ask} />}
         </article>)}
       </div>
     </div>
   </section>;
 }
 
-function Compare({ game, open }: { game: Game; open: (view: View) => void }) {
+function Compare({ game, open, ask }: { ask: AskSelf; game: Game; open: (view: View) => void }) {
   const { t, story } = useTranslation();
   const [left, setLeft] = useState(game.endings[0]?.id);
   const [right, setRight] = useState(game.endings[1]?.id ?? "");
   const a = game.endings.find((ending) => ending.id === left) ?? game.endings[0];
   const b = game.endings.find((ending) => ending.id === right && ending.id !== a?.id);
+  function conversation(id: string) {
+    const branch = game.branches.find(item => item.id === id);
+    return branch?.events.length ? <OtherSelf key={id} game={game} branch={branch} ask={ask} /> : null;
+  }
   return <section><StartHeader eyebrow={story(categoryInfo[game.scenario_id].title)} title={t("Compare timelines")}><p>{t("See the choices, benefits, and trade-offs you experienced in each life.")}</p></StartHeader>
+    <PersonalContext profile={game.profile} />
+    {a && b && <Divergence game={game} first={a} second={b} />}
     <div className="compare-grid">
       <div>{a && <><label>{t("First timeline")}<select value={a.id} onChange={(event) => {
         setLeft(event.target.value);
         if (event.target.value === right) setRight(a.id);
       }}>{game.endings.map((end, i) => <option value={end.id} key={end.id}>{i + 1}. {end.path} · {end.title}</option>)}</select></label>
-        <Outcome ending={a} expanded /></>}</div>
+        <Outcome ending={a} expanded />{conversation(a.id)}</>}</div>
       <div>{game.endings.length > 1 && <label>{t("Second timeline")}<select value={b?.id ?? ""} onChange={(event) => setRight(event.target.value)}>
-        <option value="">{t("Choose another timeline")}</option>{game.endings.filter((end) => end.id !== a?.id).map((end) =>
-          <option value={end.id} key={end.id}>{end.path} · {end.title}</option>)}</select></label>}
-        {b ? <Outcome ending={b} expanded /> : <div className="panel empty"><GitFork /><h2>{game.endings.length < 2 ? t("Explore a second path") : t("Select an ending")}</h2>
+        <option value="">{t("Choose another timeline")}</option>{game.endings.map((end, index) => end.id !== a?.id &&
+          <option value={end.id} key={end.id}>{index + 1}. {end.path} · {end.title}</option>)}</select></label>}
+        {b ? <><Outcome ending={b} expanded />{conversation(b.id)}</> : <div className="panel empty"><GitFork /><h2>{game.endings.length < 2 ? t("Explore a second path") : t("Select an ending")}</h2>
           {game.endings.length < 2 && <Button variant="outline" onClick={() => open("map")}>{t("Open Life Map")}</Button>}</div>}</div>
     </div><div className="actions"><Button onClick={() => open("lab")}>{t("Reflect in Decision Lab")} <ArrowRight size={16} /></Button></div>
+  </section>;
+}
+
+function Divergence({ game, first, second }: { game: Game; first: Ending; second: Ending }) {
+  const { t } = useTranslation();
+  const differentPaths = game.branches.find(b => b.id === first.id)?.path_id !== game.branches.find(b => b.id === second.id)?.path_id;
+  const index = differentPaths ? 0 : first.events.findIndex((event, i) => second.events[i] &&
+    (event.choice_id ?? event.choice) !== (second.events[i].choice_id ?? second.events[i].choice));
+  return <section className="panel divergence"><h2>{t("Where the timelines diverged")}</h2>
+    {index < 0 ? <p>{t("Both timelines share the same recorded choices.")}</p> : <>
+      <p>{differentPaths ? t("Original decision") : first.events[index].scene}</p>
+      <div className="compare-grid">{[first, second].map((end, i) => <div key={end.id}>
+        <h3>{i === 0 ? t("First timeline") : t("Second timeline")} · {end.path}</h3>
+        <small>{t("Observed in the story")}</small><p><strong>{end.events[index].choice}</strong></p><p>{end.events[index].outcome}</p>
+        <strong>{t("Later trade-off")}</strong><p>{end.gain} · {end.cost}</p>
+      </div>)}</div></>}
+  </section>;
+}
+
+function ValueMatrix({ game }: { game: Game }) {
+  const { t } = useTranslation();
+  const values = game.profile.selected_values;
+  if (!values?.length) return null;
+  return <section className="panel matrix" tabIndex={0} aria-label={t("Your values across timelines")}>
+    <h2>{t("Your values across timelines")}</h2><p>{t("Scores describe the fictional world. You decide which trade-off is acceptable.")}</p>
+    <table><thead><tr><th scope="col">{t("Values")}</th>{game.endings.map((end, i) => <th scope="col" key={end.id}>{t("Timeline {number}", { number: i + 1 })} · {end.path}</th>)}</tr></thead>
+    <tbody>{values.map(id => <tr key={id}><th scope="row">{t(metrics[id])}</th>{game.endings.map(end => {
+      const branch = game.branches.find(b => b.id === end.id);
+      const event = end.events.filter(e => e.effects[id]).sort((a, b) => Math.abs(b.effects[id]) - Math.abs(a.effects[id]))[0];
+      return <td key={end.id}><strong>{branch?.world[id]} / 100</strong>{event ? <>
+        <p>{event.scene} · {event.choice}</p><p>{event.outcome}</p>
+        <small>{t("Effect in this scene")} {event.effects[id] > 0 ? "+" : ""}{event.effects[id]}</small>
+      </> : <p>{t("No recorded decision changed this score.")}</p>}</td>;
+    })}</tr>)}</tbody></table><p>{t("Your interpretation: which event matters most to you?")}</p>
   </section>;
 }
 
@@ -324,6 +424,8 @@ function DecisionLab({ game, scenario, save, open }: {
   function download() {
     if (!passport) return;
     const text = [`Parallel Life · ${t("Decision Passport")}`, scenario.subtitle, passport.dilemma || scenario.intro,
+      ...(passport.constraint ? [`${t("Important constraint")}: ${passport.constraint}`] : []),
+      ...(passport.selected_values?.length ? [`${t("Values")}: ${passport.selected_values.map(id => t(metrics[id])).join(", ")}`] : []),
       `${t("Priorities")}: ${passport.priorities.map(story).join(", ")}`, ...passport.timelines.map((timeline) =>
         `${timeline.path} — ${timeline.title}\n${t("What you gained")}: ${timeline.gain}\n${t("What it cost")}: ${timeline.cost}\n${timeline.events.map((event) => `• ${event.choice} — ${event.outcome}`).join("\n")}`),
       `${t("What’s still uncertain?")} ${passport.uncertainty || scenario.question}`, `${t("Question")}: ${scenario.question}`,
@@ -336,9 +438,11 @@ function DecisionLab({ game, scenario, save, open }: {
   }
   return <section className="lab-layout">
     <div><StartHeader eyebrow={scenario.title} title={t("Decision Lab")}><p>{scenario.intro}</p></StartHeader>
+      <ValueMatrix game={game} />
       <div className="reflection-outcomes">{game.endings.map((end) => <Outcome key={end.id} ending={end} expanded />)}</div></div>
     <form className="panel form-grid" onSubmit={(event) => { event.preventDefault(); save({ priorities, uncertainty, next_step: step }); }}>
       <h2>{t("Decision Passport")}</h2>
+      <PersonalContext profile={game.profile} />
       <fieldset><legend>{t("What mattered most to you in this story?")}</legend><div className="priority-list">{scenario.priorities.map((item) =>
         <label key={item}><input type="checkbox" checked={priorities.includes(item)} onChange={(event) =>
           setPriorities(event.target.checked ? [...priorities, item] : priorities.filter((entry) => entry !== item))} /> {story(item)}</label>)}</div></fieldset>
@@ -353,28 +457,6 @@ function DecisionLab({ game, scenario, save, open }: {
         <div className="passport-experiment"><small>{t("Optional experiment")}</small><strong>{scenario.experiment.title}</strong><p>{scenario.experiment.description}</p></div>
         <Button variant="outline" onClick={() => open("bridge")}>{t("Continue to Reality Bridge")} <ArrowRight size={16} /></Button></>}
     </form>
-  </section>;
-}
-
-function RealityBridge({ game, scenario, save }: {
-  game: Game; scenario: Scenario; save: (progress: Game["experiment"]) => void;
-}) {
-  const { t } = useTranslation();
-  const { busy } = useGame();
-  const { experiment } = scenario;
-  const progress = game.experiment;
-  return <section className="narrow"><StartHeader eyebrow={t("Reality Bridge")} title={experiment.title}><p>{experiment.description}</p></StartHeader>
-    <div className="panel form-grid">
-      {game.passport?.next_step && <p className="last-event">{game.passport.next_step}</p>}
-      <p className="small-label">{t("Steps checked: {count}/{total}", { count: progress.checked.length, total: experiment.steps.length })}</p>
-      <progress value={progress.checked.length} max={experiment.steps.length} aria-label={t("Checklist progress")} />
-      <div className="checklist">{experiment.steps.map((step, index) => <label key={step}><input type="checkbox" disabled={busy}
-        checked={progress.checked.includes(index)} onChange={(event) => save({ status: "active",
-          checked: event.target.checked ? [...progress.checked, index] : progress.checked.filter((item) => item !== index) })} />{step}</label>)}</div>
-      <div className="actions"><Button disabled={busy || progress.status === "completed"} onClick={() => save({ ...progress, status: "completed" })}>{t("Mark complete")}</Button>
-        <Button variant="outline" disabled={busy || progress.status === "skipped"} onClick={() => save({ ...progress, status: "skipped" })}>{t("Skip experiment")}</Button></div>
-      {progress.status !== "active" && <p className="saved" role="status">{progress.status === "completed" ? t("Experiment completed.") : t("Experiment skipped.")}</p>}
-    </div>
   </section>;
 }
 
@@ -443,9 +525,12 @@ function GameInterface({ switchLocale }: { switchLocale: (locale: Locale) => voi
       await loadCatalog();
       try {
         update(await api<Game>(`/sessions/${id}`));
-        const restored = previous ?? "story";
+        const savedGame = useGame.getState().game;
+        const restored = previous ?? (savedGame?.experiment.plan && savedGame.experiment.status === "active" ? "bridge" : "story");
         setView(restored);
-        window.history.replaceState({ ...window.history.state, parallelLifeView: restored }, "");
+        const url = new URL(window.location.href);
+        url.searchParams.set("view", restored);
+        window.history.replaceState({ ...window.history.state, parallelLifeView: restored }, "", url);
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) localStorage.removeItem(activeKey);
         throw error;
@@ -500,6 +585,9 @@ function GameInterface({ switchLocale }: { switchLocale: (locale: Locale) => voi
     });
   }
 
+  const askSelf: AskSelf = (id, index, text) =>
+    mutation(`/branches/${id}/other-self`, "POST", { scene_index: index, text, locale });
+
   const branchPath = game?.active_id ? `/branches/${game.active_id}` : "";
   async function mutation(path: string, method = "POST", body?: unknown, next?: View) {
     if (!game) return false;
@@ -521,7 +609,12 @@ function GameInterface({ switchLocale }: { switchLocale: (locale: Locale) => voi
   }
 
   function resume(id: string) {
-    void perform(async () => { await loadCatalog(); update(await api<Game>(`/sessions/${id}`)); open("story"); });
+    void perform(async () => {
+      await loadCatalog();
+      const savedGame = await api<Game>(`/sessions/${id}`);
+      update(savedGame);
+      open(savedGame.experiment.plan && savedGame.experiment.status === "active" ? "bridge" : "story");
+    });
   }
 
   function remove(id: string) {
@@ -538,10 +631,11 @@ function GameInterface({ switchLocale }: { switchLocale: (locale: Locale) => voi
 
   let content: ReactNode;
   switch (view) {
-    case "home": content = <Home start={start} continuing={game?.scenario_id} resume={() => open("story")} />; break;
+    case "home": content = <Home start={start} continuing={game?.scenario_id} resume={() => open(game?.experiment.plan && game.experiment.status === "active" ? "bridge" : "story")} />; break;
     case "onboarding": content = <Onboarding key={preferred} category={preferred} onSave={saveProfile} />; break;
     case "scenarios": content = <section className="catalog-page">
       <StartHeader eyebrow={t("Your next decision")} title={t("Choose a crossroads")}><p>{t("Playing as {name}. Choose the story you want to explore first.", { name: profile?.name ?? "" })}</p></StartHeader>
+      {profile && <PersonalContext profile={profile} />}
       <ScenarioCards select={startSession} /></section>; break;
     case "universes": content = <section><StartHeader eyebrow={t("Saved stories")} title={t("My Universes")}><p>{t("Resume a saved story in this browser.")}</p></StartHeader>
       {universes === null ? <div className="panel empty"><p>{busy ? t("Loading your universes…") : t("Couldn’t load your universes.")}</p>
@@ -568,15 +662,15 @@ function GameInterface({ switchLocale }: { switchLocale: (locale: Locale) => voi
             text, locale, scene_index: game.branches.find((item) => item.id === game.active_id)?.scene?.index,
           })}
           narrate={() => { void mutation(`${branchPath}/scene`, "POST", { locale }); }} />; break;
-        case "map": content = <TimelineScreen game={game} scenario={scenario}
+        case "map": content = <TimelineScreen ask={askSelf} game={game} scenario={scenario}
           start={(id) => { void mutation("/branches", "POST", { path_id: id }, "story"); }}
           activate={(id) => { void mutation(`/branches/${id}/active`, "PUT", undefined, "story"); }}
           fork={(id, checkpoint) => { void mutation("/branches", "POST", { parent_id: id, checkpoint }, "story"); }} />; break;
-        case "compare": content = <Compare game={game} open={open} />; break;
+        case "compare": content = <Compare ask={askSelf} game={game} open={open} />; break;
         case "lab": content = <DecisionLab key={game.id} game={game} scenario={scenario} open={open}
           save={(value) => { void mutation("/reflection", "PUT", value); }} />; break;
-        case "bridge": content = <RealityBridge game={game} scenario={scenario}
-          save={(value) => { void mutation("/experiment", "PUT", value); }} />; break;
+        case "bridge": content = <RealityBridge key={game.id} game={game} scenario={scenario} open={open}
+          save={(value) => mutation("/experiment", "PUT", value)} />; break;
       }
   }
   const journey = game && ["story", "map", "compare", "lab", "bridge"].includes(view);

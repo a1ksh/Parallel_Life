@@ -42,6 +42,6 @@ export function localizeGame(game: Game, locale: Locale): Game {
   }
   return { ...game, endings: game.endings.map(ending), branches: game.branches.map(branch),
     passport: game.passport && { ...game.passport, timelines: game.passport.timelines.map(ending),
-      dilemma: game.passport.dilemma && t(game.passport.dilemma), questions: game.passport.questions?.map(t),
+      dilemma: game.profile.dilemma || (game.passport.dilemma && t(game.passport.dilemma)), questions: game.passport.questions?.map(t),
       experiment_title: game.passport.experiment_title && t(game.passport.experiment_title) } };
 }

@@ -23,8 +23,13 @@ class UsageLimitReached(Exception):
     pass
 
 
+def provider_key() -> str:
+    variable = "GEMINI_API_KEY" if os.getenv("PARALLEL_LIFE_AI_PROVIDER") == "gemini" else "OPENAI_API_KEY"
+    return os.getenv(variable, "").strip()
+
+
 def model_enabled() -> bool:
-    return bool(os.environ.get("OPENAI_API_KEY", "").strip()) and os.environ.get("PARALLEL_LIFE_AI_ENABLED", "1") != "0"
+    return bool(provider_key()) and os.environ.get("PARALLEL_LIFE_AI_ENABLED", "1") != "0"
 
 
 def reserve_ai(db: Session, guest: str) -> str | None:

@@ -4,9 +4,11 @@ import type { Locale } from "@/i18n/config";
 export const categories = ["career", "education", "relationships"] as const;
 export type Category = typeof categories[number];
 export const avatars = ["dawn", "orbit", "night", "ember"] as const;
+export type ValueId = "career" | "finances" | "freedom" | "knowledge" | "wellbeing" | "social";
 export type Profile = {
   id: string; name: string; age: number; avatar: typeof avatars[number]; situation: string;
   goal: string; category: Category; traits: string; values: string; background: string;
+  dilemma?: string; constraint?: string; selected_values?: ValueId[];
 };
 export type NPC = {
   id: string; name: string; role: string; avatar: string; traits: string[];
@@ -28,7 +30,7 @@ export type Scene = {
 };
 export type Narration = { title: string; narrative: string; dialogue: string; reaction?: string; side_event?: string };
 export type Message = { role: "player" | "npc"; text: string; locale?: Locale; mode?: "scripted" | "live" };
-export type StoryEvent = { scene: string; choice: string; outcome: string; effects: Record<string, number> };
+export type StoryEvent = { choice_id?: string; scene: string; choice: string; outcome: string; effects: Record<string, number> };
 export type Branch = {
   id: string; path_id: string; parent_id: string | null; fork_at: number;
   world: Record<string, number>; events: StoryEvent[]; checkpoints: number; ending: number | null;
@@ -39,12 +41,18 @@ export type Ending = {
 };
 export type Passport = {
   priorities: string[]; uncertainty: string; next_step: string; timelines: Ending[];
-  dilemma?: string; questions?: string[]; experiment_title?: string;
+  dilemma?: string; constraint?: string; selected_values?: ValueId[]; questions?: string[]; experiment_title?: string;
 };
-export type Experiment = { checked: number[]; status: "active" | "completed" | "skipped" };
+export type Experiment = {
+  checked: number[]; status: "active" | "completed" | "skipped";
+  plan?: { action: string; deadline: string; signal: string } | null;
+  reflection?: { outcome: string; surprise: string; priority: string } | null;
+  pass_interest?: "interested" | "declined" | null;
+};
 export type Game = {
   id: string; profile: Profile; scenario_id: Category; active_id: string | null; branches: Branch[];
   endings: Ending[]; passport: Passport | null; experiment: Experiment;
+  self_dialogues?: Record<string, { scene_index: number; question: string; reply: string; mode: "live" | "scripted"; locale: Locale }[]>;
   ai_notice?: string;
 };
 export type Universe = Pick<Game, "id" | "scenario_id" | "profile"> & { branches: number; completed: number };

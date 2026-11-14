@@ -34,7 +34,7 @@ export function LifeMap({ game, scenario, onSelect, onFork }: {
         const originOrder = branches.indexOf(origin);
         checkpointActions.set(checkpoint, { id: origin.id, index: branch.fork_at });
         nodes.push({ id: checkpoint, position: { x: x + 146, y: 267 + originOrder * 96 + branch.fork_at * 14 },
-          className: "checkpoint-node", data: { label: `${t("Fork")} · ${origin.events[branch.fork_at]?.scene ?? t("Saved decision")}` } });
+          className: "checkpoint-node", data: { label: t("Replay {scene}", { scene: origin.events[branch.fork_at]?.scene ?? t("Saved decision") }) } });
         edges.push({ id: `from-${checkpoint}`, source: origin.id, target: checkpoint });
       }
       edges.push({ id: branch.id, source: checkpoint || base, target: branch.id });
@@ -47,7 +47,7 @@ export function LifeMap({ game, scenario, onSelect, onFork }: {
       const node = nodes.find((item) => item.id === saved.id)!;
       checkpointActions.set(id, { id: saved.id, index });
       nodes.push({ id, position: { x: node.position.x + 158, y: node.position.y + 105 + index * 64 },
-        data: { label: event.scene }, className: "checkpoint-node" });
+        data: { label: t("Replay {scene}", { scene: event.scene }) }, className: "checkpoint-node" });
       edges.push({ id: `checkpoint-${id}`, source: index && checkpointActions.has(`${saved.id}:${index - 1}`) ? `${saved.id}:${index - 1}` : saved.id, target: id });
     }
   }

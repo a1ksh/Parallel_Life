@@ -4,6 +4,14 @@ An interactive fictional life simulator for adults. Start with a fictional avata
 
 The Life Map shows named decision checkpoints and restores them into independent timelines. Compare endings and earlier decisions, save a Decision Passport with reflection questions, and track an optional Reality Bridge experiment. My Universes lists and deletes saved games. Guest games are tied to a random token stored in the browser. Timelines completed before the fifth scene was added keep their saved ending.
 
+## Personal decisions and the return visit
+
+Quick Start supplies a fictional dilemma. A custom avatar can bring a personal dilemma, a practical constraint and two or three values. Complete two timelines and open Compare to find their first differing choice. In Life Map or Compare, open the other-self conversation and select a recorded decision. Each timeline keeps its own dialogue. With live AI disabled, the game answers using its journal.
+
+Decision Lab connects the chosen values to recorded choices and their fictional world scores. Save a Decision Passport, then set up an optional experiment in Reality Bridge. Choose one action, a check-in date and a sign you can observe. On your return, record the outcome, what surprised you and whether your priorities changed. The Decision Pass survey records interest in a proposed US$5.99 offer.
+
+The [three-minute demo and pilot guide in Russian](DEMO-PILOT-RU.md) includes facilitator prompts and blank measurement fields for ten interviews and fifteen playtests.
+
 ## Run locally
 
 Use Python 3.11+ and Node.js 24. From the repository root, build the frontend and install the backend dependencies in a virtual environment.
@@ -42,7 +50,7 @@ The modern game uses the same guest token, database records, scenario and path I
 
 ## Deploy
 
-- **FastAPI and Supabase**. Deploy the repository Dockerfile with your Python-compatible host or use the Render Blueprint in `render.yaml`. Set `DATABASE_URL` to the Supabase session pooler URI with TLS enabled. Set the optional OpenAI variables in the service’s environment. The Docker image builds Next.js and serves it through FastAPI. `/api/status` reports API availability.
+- **FastAPI and Supabase**. Deploy the repository Dockerfile with your Python-compatible host or use the Render Blueprint in `render.yaml`. The Render Blueprint provisions a free Postgres database and connects it to the web service. During setup, supply GEMINI_API_KEY as a Render secret for Gemini conversations. For a separate Supabase deployment, set DATABASE_URL to its session pooler URI with TLS enabled. Set the optional OpenAI variables in the service’s environment. The Docker image builds Next.js and serves it through FastAPI. `/api/status` reports API availability.
 - **Existing ChatGPT Sites URL**. The Sites deployment serves the same exported frontend from a Cloudflare Worker, with the equivalent REST API in `server/sites-api.js` and D1 persistence. The Site applies SQL under `drizzle/`. From the root, `npm run build` creates the Worker package input. Add optional OpenAI variables in Sites runtime settings. The previous Kazakh edition and its browser saves remain accessible at `/legacy/`.
 
 ## Code

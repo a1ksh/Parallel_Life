@@ -1,12 +1,15 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 from typing_extensions import Annotated
 
 ScenarioId = Literal["career", "education", "relationships"]
 Locale = Literal["en", "kk", "ru"]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 MessageText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=600)]
+
+
+ValueId = Literal["career", "finances", "freedom", "knowledge", "wellbeing", "social"]
 
 
 class PlayerProfile(BaseModel):
@@ -20,6 +23,19 @@ class PlayerProfile(BaseModel):
     traits: str = Field(default="", max_length=180)
     values: str = Field(default="", max_length=180)
     background: str = Field(default="", max_length=300)
+
+    dilemma: str = Field(default="", max_length=300)
+    constraint: str = Field(default="", max_length=300)
+    selected_values: list[ValueId] = Field(default_factory=list, max_length=3)
+
+    @model_validator(mode="after")
+    def validate_personal_context(self):
+        self.dilemma = self.dilemma.strip()
+        self.constraint = self.constraint.strip()
+        if self.dilemma or self.constraint or self.selected_values:
+            if not (self.dilemma and self.constraint and len(set(self.selected_values)) == len(self.selected_values) >= 2):
+                raise ValueError("Include a dilemma, a constraint, and two or three distinct values.")
+        return self
 
 
 class WorldState(BaseModel):
@@ -76,16 +92,46 @@ class DecisionPassport(BaseModel):
     next_step: str = Field(default="", max_length=500)
     timelines: list[dict] = Field(default_factory=list)
     dilemma: str = ""
+    constraint: str = ""
+    selected_values: list[ValueId] = Field(default_factory=list)
     questions: list[str] = Field(default_factory=list)
     experiment_title: str = ""
+
+
+ExperimentText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class ExperimentPlan(BaseModel):
+    action: ExperimentText
+    deadline: Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+    signal: ExperimentText
+
+
+class ExperimentReflection(BaseModel):
+    outcome: ExperimentText
+    surprise: ExperimentText
+    priority: ExperimentText
 
 
 class ActionExperiment(BaseModel):
     checked: list[int] = Field(default_factory=list, max_length=5)
     status: Literal["active", "completed", "skipped"] = "active"
+    plan: ExperimentPlan | None = None
+    reflection: ExperimentReflection | None = None
+    pass_interest: Literal["interested", "declined"] | None = None
+
+
+class SelfTurn(BaseModel):
+    scene_index: int
+    recorded_events: int | None = None
+    question: str
+    reply: str
+    locale: Locale
+    mode: Literal["live", "scripted"]
 
 
 class GameSession(BaseModel):
+    self_dialogues: dict[str, list[SelfTurn]] = Field(default_factory=dict)
     id: str
     profile: PlayerProfile
     scenario_id: ScenarioId

@@ -1,4 +1,6 @@
+import re
 from collections.abc import Callable
+from datetime import date
 from typing import Annotated
 from uuid import uuid4
 
@@ -11,12 +13,12 @@ from app.game_engine import GameError, add_branch, choose, comparisons, current_
 from app.models.database import ProfileRecord, SessionRecord, owner_hash
 from app.models.schemas import (
     ActionExperiment, ChatInput, ConversationMessage, DecisionPassport, GameSession,
-    NarrateInput, PlayerChoice, PlayerProfile, StartBranch, StartSession,
+    SelfTurn, NarrateInput, PlayerChoice, PlayerProfile, StartBranch, StartSession,
 )
 from app.scenarios import CATALOG, SCENARIOS
 from app.services.ai_limits import model_enabled, reserve_ai
 from app.services.story import NOTICES, generate, npc_reply, scene_context
-from app.services.locales import narration_variants
+from app.services.locales import LOCALES, authored, narration_variants
 
 router = APIRouter(prefix="/api")
 
@@ -101,6 +103,61 @@ def view(game: GameSession, notice: str | None = None):
     if notice:
         data["ai_notice"] = NOTICES[notice]
     return data
+
+
+@router.post("/sessions/{session_id}/branches/{branch_id}/other-self")
+async def ask_other_self(session_id: str, branch_id: str, payload: ChatInput, db: DB, guest: Owner):
+    record, game = load_game(db, session_id, guest)
+    branch = get_branch(game, branch_id)
+    index = payload.scene_index
+    if index >= len(branch.events):
+        raise HTTPException(409, "Choose a recorded decision.")
+    path = path_for(game, branch)
+    beat = path["beats"][index]
+    event = branch.events[index]
+    history = game.self_dialogues.setdefault(branch_id, [])
+    previous = history[-1] if history else None
+    if (previous and previous.scene_index == index and previous.locale == payload.locale
+            and previous.question == payload.text and previous.recorded_events == len(branch.events)):
+        return view(game)
+    alternative = next(choice[0] for i, choice in enumerate(beat["choices"]) if str(i) != event.choice_id)
+    ending = next((item for item in comparisons(game) if item["id"] == branch_id), None)
+    context = {"path": path["title"], "situation": beat["body"], "selected": event.model_dump(),
+               "unchosen_option": alternative,
+               "events": [item.model_dump() for item in branch.events],
+               "ending": ending and {k: ending[k] for k in ("title", "gain", "cost")},
+               "history": [turn.model_dump() for turn in history[-4:]], "question": payload.text}
+    generated, reason = await generate("other_self", context, reserve_ai(db, guest), payload.locale)
+    ui = LOCALES[payload.locale]["self"]
+    if generated:
+        reply = generated["reply"]
+    else:
+        intent = next((key for key, pattern in ui["patterns"].items()
+                       if re.search(pattern, payload.text, re.I)), "unsupported")
+        fields = dict(choice=authored(payload.locale, event.choice), situation=authored(payload.locale, beat["body"]),
+                      outcome=authored(payload.locale, event.outcome), alternative=authored(payload.locale, alternative))
+        effects = {k: v for k, v in event.effects.items() if k in ui["metrics"]}
+        parts = ["why" if intent == "why" else "result"]
+        if intent in ("why", "cost"):
+            focus = (max if intent == "why" else min)(effects, key=effects.get, default=None)
+            delta = effects.get(focus, 0)
+            if (intent == "why" and delta > 0) or (intent == "cost" and delta < 0):
+                fields.update(focus=ui["metrics"][focus], delta=delta)
+                parts.append("motive" if intent == "why" else "cost")
+            elif intent == "cost":
+                parts.append("no_cost")
+        elif intent != "result":
+            parts.append(intent)
+        if intent == "result" and ending:
+            fields.update(title=authored(payload.locale, ending["title"]), cost=authored(payload.locale, ending["cost"]))
+            parts.append("ending")
+        elif intent in ("result", "unknown") and not ending:
+            parts.append("unfinished")
+        reply = " ".join(ui[part].format(**fields) for part in parts)
+    history.append(SelfTurn(scene_index=index, recorded_events=len(branch.events), question=payload.text, reply=reply, locale=payload.locale,
+                            mode="live" if generated else "scripted"))
+    game.self_dialogues[branch_id] = history[-30:]
+    return commit(db, record, game, reason if reason != "disabled" else None)
 
 
 @router.get("/status")
@@ -275,7 +332,8 @@ def reflect(session_id: str, payload: DecisionPassport, db: DB, guest: Owner):
     if any(priority not in scenario["priorities"] for priority in payload.priorities):
         raise HTTPException(422, "Choose priorities from this scenario.")
     game.passport = payload.model_copy(update={"timelines": results,
-        "priorities": list(dict.fromkeys(payload.priorities)), "dilemma": scenario["intro"],
+        "priorities": list(dict.fromkeys(payload.priorities)), "dilemma": game.profile.dilemma or scenario["intro"],
+        "constraint": game.profile.constraint, "selected_values": game.profile.selected_values,
         "questions": scenario["questions"], "experiment_title": scenario["experiment"]["title"]})
     return commit(db, record, game)
 
@@ -288,5 +346,15 @@ def experiment(session_id: str, payload: ActionExperiment, db: DB, guest: Owner)
     count = len(SCENARIOS[game.scenario_id]["experiment"]["steps"])
     if any(index not in range(count) for index in payload.checked):
         raise HTTPException(422, "One checklist step could not be found.")
-    game.experiment = payload.model_copy(update={"checked": sorted(set(payload.checked))})
+    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if "checked" in changes:
+        changes["checked"] = sorted(set(payload.checked))
+    if payload.plan:
+        try:
+            date.fromisoformat(payload.plan.deadline)
+        except ValueError:
+            raise HTTPException(422, "Choose a valid date.")
+    if payload.reflection and not (payload.plan or game.experiment.plan):
+        raise HTTPException(409, "Save an experiment first.")
+    game.experiment = ActionExperiment.model_validate({**game.experiment.model_dump(), **changes})
     return commit(db, record, game)

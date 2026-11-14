@@ -122,6 +122,56 @@ async function chat(env, owner, game, branch, npcId, input) {
   return reason === 'disabled' ? undefined : reason;
 }
 
+async function askOtherSelf(env, owner, game, branch, input) {
+  const { scene_index: index, text, locale = 'en' } = input;
+  if (!validLocale(locale) || !validText(text, 600) || !Number.isInteger(index) || index < 0 || index > 4)
+    fail(422, 'Choose a decision and enter a question.');
+  const selected = branch.events[index];
+  if (!selected) fail(409, 'Choose a recorded decision.');
+  const path = pathFor(game, branch);
+  const beat = path.beats[index];
+  const situation = beat.body;
+  const alternative = beat.choices.find((_, i) => String(i) !== selected.choice_id)[0];
+  const ending = endings(game).find(item => item.id === branch.id);
+  game.self_dialogues ??= {};
+  const history = game.self_dialogues[branch.id] ?? [];
+  const question = text.trim();
+  const previous = history.at(-1);
+  if (previous?.scene_index === index && previous.locale === locale && previous.question === question &&
+      previous.recorded_events === branch.events.length) return { updated: false };
+  const { data, reason } = await generateAi(env, owner, 'other_self', {
+    path: path.title, situation, selected, unchosen_option: alternative, events: branch.events,
+    ending: ending ? { title: ending.title, gain: ending.gain, cost: ending.cost } : null,
+    history: history.slice(-4), question,
+  }, locale);
+  let reply = data?.reply;
+  if (!reply) {
+    const ui = localePolicy[locale].self;
+    const t = value => storyText[locale]?.[value] ?? value;
+    const intent = Object.entries(ui.patterns).find(([, pattern]) => new RegExp(pattern, 'iu').test(question))?.[0] ?? 'unsupported';
+    const fields = { choice: t(selected.choice), situation: t(situation), outcome: t(selected.outcome), alternative: t(alternative) };
+    const parts = [intent === 'why' ? 'why' : 'result'];
+    if (intent === 'why' || intent === 'cost') {
+      const effects = Object.entries(selected.effects).filter(([key]) => ui.metrics[key]);
+      const [metric, delta] = effects.sort((a, b) => intent === 'why' ? b[1] - a[1] : a[1] - b[1])[0] ?? [];
+      if ((intent === 'why' && delta > 0) || (intent === 'cost' && delta < 0)) {
+        fields.focus = ui.metrics[metric];
+        fields.delta = delta;
+        parts.push(intent === 'why' ? 'motive' : 'cost');
+      } else if (intent === 'cost') parts.push('no_cost');
+    } else if (intent !== 'result') parts.push(intent);
+    if (intent === 'result' && ending) {
+      fields.title = t(ending.title);
+      fields.cost = t(ending.cost);
+      parts.push('ending');
+    } else if (!ending && ['result', 'unknown'].includes(intent)) parts.push('unfinished');
+    reply = parts.map(part => ui[part].replace(/\{(\w+)\}/g, (_, key) => fields[key])).join(' ');
+  }
+  history.push({ scene_index: index, recorded_events: branch.events.length, question, reply, locale, mode: data ? 'live' : 'scripted' });
+  game.self_dialogues[branch.id] = history.slice(-30);
+  return { updated: true, reason: reason === 'disabled' ? undefined : reason };
+}
+
 async function narrate(env, owner, game, branch, locale) {
   if (!validLocale(locale)) fail(422, 'Enter valid request data.');
   const scene = currentScene(game, branch);
@@ -174,8 +224,15 @@ async function profileRoute(db, method, owner, input) {
   if (![name, situation, goal].every((value) => validText(value, 120)) || !Number.isInteger(age) || age < 18 || age > 120 ||
       !['dawn', 'orbit', 'night', 'ember'].includes(avatar) || !scenarioFor(category) ||
       !validText(traits, 180, false) || !validText(values, 180, false) || !validText(background, 300, false)) fail(422, 'Check the avatar fields and try again.');
+  const { dilemma = '', constraint = '', selected_values = [] } = input;
+  if (!validText(dilemma, 300, false) || !validText(constraint, 300, false) || !Array.isArray(selected_values))
+    fail(422, 'Check the personal dilemma fields.');
+  if ((dilemma.trim() || constraint.trim() || selected_values.length) &&
+      (!dilemma.trim() || !constraint.trim() || selected_values.length < 2 || selected_values.length > 3 ||
+       new Set(selected_values).size !== selected_values.length || !selected_values.every(value => typeof value === "string" && Object.hasOwn(worldDefaults, value))))
+    fail(422, 'Include a dilemma, a constraint, and two or three distinct values.');
   const profile = { id: crypto.randomUUID(), name: name.trim(), age, avatar, situation: situation.trim(),
-    goal: goal.trim(), category, traits, values, background };
+    goal: goal.trim(), category, traits, values, background, dilemma: dilemma.trim(), constraint: constraint.trim(), selected_values };
   await db.prepare('INSERT INTO player_profiles (id, owner, data) VALUES (?, ?, ?)').bind(profile.id, owner, JSON.stringify(profile)).run();
   return json(profile, 201);
 }
@@ -224,6 +281,11 @@ async function gameRoute(request, env, owner, id, tail) {
     const endpoint = tail[2];
     if (endpoint === 'scene' && method === 'GET') return json(sceneView(game, branch));
     if (endpoint === 'active' && method === 'PUT') game.active_id = branch.id;
+    else if (endpoint === 'other-self' && tail.length === 3 && method === 'POST') {
+      const result = await askOtherSelf(env, owner, game, branch, await payload(request));
+      if (!result.updated) return json(gameView(game));
+      notice = result.reason;
+    }
     else if (endpoint === 'choices' && method === 'POST') choose(game, branch, await payload(request));
     else if (endpoint === 'scene' && method === 'POST') {
       const body = await payload(request, true);
@@ -243,14 +305,36 @@ async function gameRoute(request, env, owner, id, tail) {
         !priorities.every((priority) => allowed.includes(priority)) || !validText(uncertainty, 500, false) ||
         !validText(next_step, 500, false)) fail(422, 'Choose priorities from this scenario.');
     game.passport = { priorities: [...new Set(priorities)], uncertainty, next_step, timelines: results,
-      dilemma: scenario.intro, questions: scenario.questions, experiment_title: scenario.experiment.title };
+      dilemma: game.profile.dilemma || scenario.intro, constraint: game.profile.constraint || '',
+      selected_values: game.profile.selected_values || [], questions: scenario.questions, experiment_title: scenario.experiment.title };
   } else if (tail[0] === 'experiment' && method === 'PUT') {
     if (!game.passport) fail(409, 'Save a Decision Passport to open Reality Bridge.');
-    const { checked, status } = await payload(request);
+    const input = await payload(request);
+    const progress = game.experiment ?? { checked: [], status: 'active' };
+    const { checked = progress.checked, status = progress.status } = input;
     const count = scenarioFor(game.scenario_id).experiment.steps.length;
     if (!Array.isArray(checked) || checked.length > 5 || checked.some((i) => !Number.isInteger(i) || i < 0 || i >= count) ||
         !['active', 'skipped', 'completed'].includes(status)) fail(422, 'Check your experiment progress.');
-    game.experiment = { checked: [...new Set(checked)].sort(), status };
+    const next = { ...progress, checked: [...new Set(checked)].sort(), status };
+    if (input.plan != null) {
+      const { action, deadline, signal } = input.plan;
+      const date = new Date(deadline + 'T00:00:00Z');
+      if (!validText(action, 500) || !validText(signal, 500) || typeof deadline !== 'string' ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(deadline) || deadline.startsWith('0000') ||
+          Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== deadline) fail(422, 'Check your experiment plan.');
+      next.plan = { action: action.trim(), deadline, signal: signal.trim() };
+    }
+    if (input.reflection != null) {
+      if (!next.plan) fail(409, 'Save an experiment first.');
+      const { outcome, surprise, priority } = input.reflection;
+      if (![outcome, surprise, priority].every((text) => validText(text, 500))) fail(422, 'Check your experiment reflection.');
+      next.reflection = { outcome: outcome.trim(), surprise: surprise.trim(), priority: priority.trim() };
+    }
+    if (input.pass_interest != null) {
+      if (!['interested', 'declined'].includes(input.pass_interest)) fail(422, 'Choose an interest response.');
+      next.pass_interest = input.pass_interest;
+    }
+    game.experiment = next;
   } else fail(404, 'This action could not be found.');
 
   const result = await db.prepare('UPDATE game_sessions SET data = ?, revision = revision + 1 WHERE id = ? AND owner = ? AND revision = ?')

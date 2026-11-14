@@ -72,9 +72,12 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     assert.equal(new DataView(await icon.arrayBuffer()).getUint16(2, true), 1);
     assert.deepEqual(await call('/api/status'), { ai: false, storage: true });
     assert.deepEqual((await call('/api/scenarios')).map((scenario) => scenario.paths.length), [3, 3, 3]);
-    const profile = await call('/api/profiles', 'POST', {
-      name: 'Avery', age: 29, avatar: 'dawn', goal: 'Explore a decision', situation: 'At work', category: 'career',
-    }, 201);
+    const context = { dilemma: 'Keep my salary or start a studio?', constraint: 'Rent is due.',
+      selected_values: ['freedom', 'finances'] };
+    const fields = { name: 'Avery', age: 29, avatar: 'dawn', goal: 'Explore a decision', situation: 'At work', category: 'career', ...context };
+    for (const values of [['freedom'], ['freedom', 'freedom'], ['freedom', 'unknown'], ['freedom', 'finances', 'social', 'career']])
+      await call('/api/profiles', 'POST', { ...fields, selected_values: values }, 422);
+    const profile = await call('/api/profiles', 'POST', fields, 201);
     const game = await call('/api/sessions', 'POST', { profile_id: profile.id, scenario_id: 'career' }, 201);
     const session = `/api/sessions/${game.id}`;
     const source = (await call(session + '/branches', 'POST', { path_id: 'business' })).active_id;
@@ -88,6 +91,14 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     const fork = await call(session + '/branches', 'POST', { parent_id: source, checkpoint: 0 });
     const forkId = fork.active_id;
     assert.equal(fork.branches.find((branch) => branch.id === forkId).npcs.emma.messages.length, 2);
+    const selfQuestion = { scene_index: 0, text: 'Почему ты сделал такой выбор?', locale: 'ru' };
+    await call(path(forkId) + '/other-self', 'POST', selfQuestion, 409);
+    const discussed = await call(path(source) + '/other-self', 'POST', selfQuestion);
+    assert.equal(discussed.active_id, forkId);
+    assert.match(discussed.self_dialogues[source][0].reply, /Мой выбор/);
+    assert.equal(discussed.self_dialogues[source][0].mode, 'scripted');
+    assert.equal(discussed.self_dialogues[forkId], undefined);
+    assert.deepEqual((await call(session)).self_dialogues, discussed.self_dialogues);
     const realFetch = globalThis.fetch;
     let providerContext;
     try {
@@ -124,10 +135,50 @@ test('the hosted Worker serves Next.js and retains separate timelines, NPC memor
     assert.equal(oldEnding.title, reopened.endings[0].title);
     assert.equal(oldEnding.events.length, 4);
     assert.equal(oldEnding.aftermath, null);
+    await call(path(source) + '/choices', 'POST', { scene_index: 1, choice_id: '0' });
+    const trusted = await call(path(source) + '/choices', 'POST', { scene_index: 2, choice_id: '2' });
+    const trustedEvent = trusted.branches.find(b => b.id === source).events[2];
+    const other = (await call(session + '/branches', 'POST', { parent_id: source, checkpoint: 2 })).active_id;
+    const changed = await call(path(other) + '/choices', 'POST', { scene_index: 2, choice_id: '1' });
+    const alternateEvent = changed.branches.find(b => b.id === other).events[2];
+    const askSelf = (id, text, locale = 'en') => call(path(id) + '/other-self', 'POST', { scene_index: 2, text, locale });
+    const result = (await askSelf(source, 'What did it lead to?')).self_dialogues[source];
+    assert.ok(result.at(-1).reply.includes(trustedEvent.outcome));
+    assert.match(result.at(-1).reply, /still open/);
+    assert.deepEqual((await askSelf(source, 'What did it lead to?')).self_dialogues[source], result);
+    const cost = (await askSelf(other, 'What did it cost?')).self_dialogues[other].at(-1).reply;
+    assert.ok(cost.includes(alternateEvent.outcome) && !cost.includes(trustedEvent.outcome));
+    assert.match(cost, /finances \(-4\)/);
+    assert.match((await askSelf(other, 'Юпитер қайда?', 'kk')).self_dialogues[other].at(-1).reply, /күнделікте жоқ/);
+    try {
+      env.OPENAI_API_KEY = 'test-only';
+      globalThis.fetch = async (_, request) => {
+        providerContext = JSON.parse(JSON.parse(request.body).input);
+        return Response.json({ status: 'completed', output: [{ type: 'message',
+          content: [{ type: 'output_text', text: '{"reply":"I got an introduction."}' }] }] });
+      };
+      assert.equal((await askSelf(source, 'Do you regret this choice?')).self_dialogues[source].at(-1).mode, 'live');
+      assert.deepEqual(providerContext.selected, trustedEvent);
+      assert.deepEqual(providerContext.history, result);
+      assert.equal(providerContext.ending, null);
+      assert.ok(!JSON.stringify(providerContext).includes(alternateEvent.outcome));
+    } finally {
+      delete env.OPENAI_API_KEY;
+      globalThis.fetch = realFetch;
+    }
     await call(session, 'GET', undefined, 404, crypto.randomUUID());
-    await call(session + '/reflection', 'PUT', { priorities: ['Independence'] });
+    const reflected = await call(session + '/reflection', 'PUT', { priorities: ['Independence'], dilemma: 'overwritten' });
+    for (const [key, value] of Object.entries(context)) assert.deepEqual(reflected.passport[key], value);
     await call(session + '/experiment', 'PUT', { checked: [0], status: 'active' });
     assert.deepEqual((await call(session)).experiment.checked, [0]);
+    const plan = { action: 'Ask a mentor', deadline: '2026-11-21', signal: 'Receive one example' };
+    const reflection = { outcome: 'Met at lunch', surprise: 'Low setup cost', priority: 'Independence matters more' };
+    await call(session + '/experiment', 'PUT', { reflection }, 409);
+    await call(session + '/experiment', 'PUT', { plan: { ...plan, deadline: '2026-02-30' } }, 422);
+    await call(session + '/experiment', 'PUT', { plan });
+    await call(session + '/experiment', 'PUT', { reflection, status: 'completed' });
+    await call(session + '/experiment', 'PUT', { pass_interest: 'declined' });
+    assert.deepEqual((await call(session)).experiment, { checked: [0], status: 'completed', plan, reflection, pass_interest: 'declined' });
     await call(session, 'DELETE', undefined, 204);
     assert.deepEqual(await call('/api/sessions'), []);
     assert.deepEqual(await call('/api/profiles'), []);

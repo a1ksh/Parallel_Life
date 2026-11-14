@@ -5,7 +5,34 @@
     "goal": "\\b(your goal|your plans?|what (do|did) you (want|need)|why are you)\\b",
     "earlier": "I remember your earlier message: “{message}” {followup}",
     "witnessed": "Here’s what I remember: {event} {support}",
-    "motivation": "Here’s what I’m working toward: {goal} {support}"
+    "motivation": "Here’s what I’m working toward: {goal} {support}",
+    "self": {
+      "patterns": {
+        "regret": "regret|wish I|wish you|do differently|second thoughts",
+        "unknown": "unknown|uncertain|still unclear|what if|unanswered",
+        "cost": "cost|price|trade.off|give up|sacrifice|lose|lost",
+        "result": "lead to|led to|outcome|consequence|result|what happened|ending|turn out",
+        "why": "^why[?!. ]*$|why (did|would) you (make|choose|pick|take|decide)|your reason|motivat|motive"
+      },
+      "cost": "In this scene the game recorded a drop in {focus} ({delta}).",
+      "no_cost": "The journal records no drop in a world score here. It leaves the personal cost open.",
+      "regret": "I wonder sometimes about the option I passed up: “{alternative}”. I never tried it in that scene, so I can’t say I would have preferred it.",
+      "unknown": "I never learned what would have happened if I had chosen “{alternative}” here.",
+      "unfinished": "My timeline is still open. I don’t yet know where it leads.",
+      "unsupported": "The journal doesn’t answer that question. I can discuss my motive, the cost, possible regret or what remains unknown.",
+      "why": "I remember weighing this: {situation} My decision was “{choice}”. Here is what happened: {outcome}",
+      "result": "My decision was “{choice}”. The immediate result in my timeline: {outcome}",
+      "ending": "My timeline eventually reached “{title}”. The trade-off was: {cost}.",
+      "metrics": {
+        "career": "career",
+        "finances": "finances",
+        "freedom": "freedom",
+        "knowledge": "knowledge",
+        "wellbeing": "well-being",
+        "social": "connections"
+      },
+      "motive": "Looking back, one possible reason was what I stood to gain in this area: {focus}."
+    }
   },
   "kk": {
     "language": "Kazakh (Қазақша, Cyrillic)",
@@ -13,7 +40,34 @@
     "goal": "мақсат|жоспар|қалайсың|ниет",
     "earlier": "Бұрын айтқаның есімде: «{message}» {followup}",
     "witnessed": "Менің есімде қалғаны: {event} {support}",
-    "motivation": "Менің мақсатым: {goal} {support}"
+    "motivation": "Менің мақсатым: {goal} {support}",
+    "self": {
+      "patterns": {
+        "regret": "өкін|өкіні|басқаша істер",
+        "unknown": "белгісіз|беймәлім|анық емес|жауапсыз|не болар еді",
+        "cost": "құны|бағасы|есесіне|бас тарт|жоғалт",
+        "result": "әкел|нәтиже|соңы|немен аяқтал|не болды|салдар",
+        "why": "^(неге|неліктен)[?!. ]*$|(неге|неліктен).*(таңда|шешім)|түрткі|таңдау.*себеп|шешім.*себеп"
+      },
+      "cost": "Осы көріністе ойын көрсеткіші төмендеді: {focus} ({delta}).",
+      "no_cost": "Бұл жолы ойын көрсеткіштері төмендеген жоқ. Жеке өзім үшін құны қандай болғаны жазылмаған.",
+      "regret": "«{alternative}» деген нұсқа да бар еді. Оны таңдамаған соң, көңілімнен көбірек шығар ма еді, айта алмаймын.",
+      "unknown": "«{alternative}» деген нұсқаны таңдасам, не боларын осы жолда біле алмадым.",
+      "unfinished": "Бұл оқиға әлі аяқталған жоқ. Қайда апарарын әзірге білмеймін.",
+      "unsupported": "Бұл сұрақтың жауабы күнделікте жоқ. Шешімнің себебін, құнын, ықтимал өкінішті немесе белгісіз қалған жайтты талқылай аламын.",
+      "why": "Сол кездегі жағдай есімде: {situation} Менің таңдауым — «{choice}». Нәтижесінде: {outcome}",
+      "result": "Менің таңдауым — «{choice}». Сол шешімнің тікелей нәтижесі: {outcome}",
+      "ending": "Кейін менің жолым «{title}» деген финалға жетті. Мұның құны — {cost}.",
+      "metrics": {
+        "career": "мансап",
+        "finances": "қаржы",
+        "freedom": "еркіндік",
+        "knowledge": "білім",
+        "wellbeing": "әл-ауқат",
+        "social": "байланыс"
+      },
+      "motive": "Кейін ойласам, бұл шешімге осы саладағы мүмкіндік себеп болуы мүмкін: {focus}."
+    }
   },
   "ru": {
     "language": "Russian (Русский)",
@@ -21,6 +75,33 @@
     "goal": "цель|цели|твои планы|хочешь|стремишься|тебе нужно",
     "earlier": "Я помню твоё прежнее сообщение: «{message}» {followup}",
     "witnessed": "Вот что я помню: {event} {support}",
-    "motivation": "Вот к чему я стремлюсь: {goal} {support}"
+    "motivation": "Вот к чему я стремлюсь: {goal} {support}",
+    "self": {
+      "patterns": {
+        "regret": "сожал|жале|поступил бы иначе",
+        "unknown": "неизвест|неясн|под вопросом|что если|без ответа",
+        "cost": "цен[аеуой]|стоил|пришлось отдать|пожертв|потер|компромисс",
+        "result": "вышло|итог|финал|прив[её]л|кончил|получилось|последств|результат|что дальше",
+        "why": "^(почему|зачем)[?!. ]*$|(почему|зачем).*(выбрал|выбрала|решил|поступил|сделал)|мотив|причин.*(выбор|решени)|чем руковод"
+      },
+      "cost": "В этой сцене снизился игровой показатель «{focus}» ({delta}).",
+      "no_cost": "Игровые показатели здесь не снизились. Чего мне лично стоил этот шаг, в дневнике не записано.",
+      "regret": "У меня был и другой вариант — «{alternative}». Я его не испытал, поэтому не знаю, понравился бы он мне больше.",
+      "unknown": "Я так и не узнал, что произошло бы, выбери я в тот момент «{alternative}».",
+      "unfinished": "Моя история ещё продолжается. Чем она закончится, я пока не знаю.",
+      "unsupported": "В дневнике нет ответа на этот вопрос. Я могу обсудить мотив, цену решения, возможное сожаление или то, что осталось неизвестным.",
+      "why": "Я помню, в чём была развилка: {situation} Мой выбор — «{choice}». Вот что произошло: {outcome}",
+      "result": "Мой выбор — «{choice}». В моей ветке непосредственный результат был таким: {outcome}",
+      "ending": "Позже моя ветка пришла к финалу «{title}». Цена этого пути — {cost}.",
+      "metrics": {
+        "career": "карьера",
+        "finances": "финансы",
+        "freedom": "свобода",
+        "knowledge": "знания",
+        "wellbeing": "благополучие",
+        "social": "связи"
+      },
+      "motive": "Оглядываясь назад, я вижу возможный мотив — для меня имело значение то, что давал этот шаг ({focus})."
+    }
   }
 }

@@ -119,6 +119,18 @@ def test_reflection_experiment_and_deletion(game_api):
     result = client.put(f"{session}/experiment", json={"checked": [0, 2, 2], "status": "active"})
     assert result.status_code == 200, result.text
     assert client.get(session).json()["experiment"]["checked"] == [0, 2]
+    endpoint = f"{session}/experiment"
+    plan = {"action": "Ask one graduate", "deadline": "2026-11-21", "signal": "One concrete example"}
+    notes = {"outcome": "They replied", "surprise": "They mentioned debt", "priority": "Community still matters"}
+    assert client.put(endpoint, json={"reflection": notes}).status_code == 409
+    assert client.put(endpoint, json={"plan": {**plan, "deadline": "2026-02-30"}}).status_code == 422
+    assert client.put(endpoint, json={"plan": plan}).status_code == 200
+    assert client.put(endpoint, json={"reflection": notes, "status": "completed"}).status_code == 200
+    assert client.put(endpoint, json={"pass_interest": "interested"}).status_code == 200
+    saved = client.get(session).json()
+    assert saved["experiment"] == {"plan": plan, "reflection": notes, "status": "completed",
+                                   "checked": [0, 2], "pass_interest": "interested"}
+    assert saved["passport"] == passport.json()["passport"]
     assert client.delete(session).status_code == 204
     assert client.get(session).status_code == 404
     assert client.get("/api/profiles").json() == []
@@ -315,3 +327,86 @@ def test_provider_failures_and_rate_limits_keep_chat_playable(game_api, monkeypa
     monkeypatch.setenv("PARALLEL_LIFE_AI_ENABLED", "0")
     assert client.get("/api/status").json()["ai"] is False
     assert "ai_notice" not in chat(client, session, branch_id, 0, "emma", "One more scripted turn")
+
+
+def test_other_self_uses_selected_timeline_and_remembers_dialogue(game_api, monkeypatch):
+    import app.api.routes as routes
+
+    client, _, _ = game_api
+    url = start(client)
+    left = branch(client, url, path_id="business")["active_id"]
+    decide(client, url, left, 0, 0)
+    right = branch(client, url, parent_id=left, checkpoint=0)["active_id"]
+    decide(client, url, right, 0, 1)
+    endpoint = f"{url}/branches/{left}/other-self"
+    question = {"scene_index": 0, "locale": "ru", "text": "Почему ты сделал такой выбор?"}
+    game = client.post(endpoint, json=question).json()
+    assert game["active_id"] == right
+    assert set(game["self_dialogues"]) == {left}
+    first = game["self_dialogues"][left][0]
+    assert first["mode"] == "scripted" and "возможный мотив" in first["reply"]
+    assert client.post(endpoint, json={**question, "scene_index": 1}).status_code == 409
+    assert client.post(endpoint, headers={"X-Guest-Token": str(uuid4())}, json=question).status_code == 404
+
+    async def provider(kind, context, blocked, locale):
+        assert kind == "other_self" and locale == "ru"
+        assert context["selected"]["choice_id"] == "0"
+        assert len(context["events"]) == 1 and context["ending"] is None
+        assert context["history"] == [first]
+        return {"reply": "Я хотел проверить спрос."}, None
+
+    monkeypatch.setattr(routes, "generate", provider)
+    assert client.post(endpoint, json={**question, "text": "И что дальше?"}).status_code == 200
+    saved = client.get(url).json()
+    assert saved["self_dialogues"][left][-1]["mode"] == "live"
+    assert saved["branches"] == game["branches"]
+
+
+def test_other_self_trust_choice_and_followups(game_api):
+    client, _, _ = game_api
+    url = start(client)
+    left = branch(client, url, path_id="business")["active_id"]
+    decide(client, url, left, 0, 0)
+    decide(client, url, left, 1, 0)
+    third = active(decide(client, url, left, 2, 2))["events"][2]
+    right = branch(client, url, parent_id=left, checkpoint=2)["active_id"]
+    alternate = active(decide(client, url, right, 2, 1))["events"][2]
+
+    def ask(branch_id, question, locale="en"):
+        response = client.post(f"{url}/branches/{branch_id}/other-self",
+                               json={"scene_index": 2, "text": question, "locale": locale})
+        assert response.status_code == 200, response.text
+        return response.json()["self_dialogues"][branch_id]
+
+    first = ask(left, "What did it lead to?")
+    assert third["outcome"] in first[-1]["reply"] and "still open" in first[-1]["reply"]
+    assert ask(left, "What did it lead to?") == first
+    cost = ask(right, "What did it cost?")[-1]["reply"]
+    assert alternate["outcome"] in cost and "finances (-4)" in cost and third["outcome"] not in cost
+    assert "күнделікте жоқ" in ask(right, "Юпитер қайда?", "kk")[-1]["reply"]
+    assert "не испытал" in ask(right, "Ты жалеешь об этом выборе?", "ru")[-1]["reply"]
+    assert "still open" in ask(right, "What remains unknown?")[-1]["reply"]
+    assert client.get(url).json()["self_dialogues"][left] == first
+
+
+def test_personal_context_survives_reflection_and_reload(game_api):
+    client, _, _ = game_api
+    context = {"dilemma": "Keep my job or open a studio?", "constraint": "Rent is due monthly.",
+               "selected_values": ["freedom", "finances"]}
+    profile = {"name": "Sam", "age": 32, "avatar": "orbit", "category": "career",
+               "situation": "Employed", "goal": "Explore", **context}
+    for invalid in (["freedom"], ["freedom", "freedom"], ["freedom", "money"],
+                    ["career", "freedom", "finances", "social"]):
+        assert client.post("/api/profiles", json={**profile, "selected_values": invalid}).status_code == 422
+    result = client.post("/api/profiles", json=profile)
+    assert result.status_code == 201
+    session = client.post("/api/sessions", json={"profile_id": result.json()["id"], "scenario_id": "career"}).json()
+    url = f"/api/sessions/{session['id']}"
+    timeline = branch(client, url, path_id="business")["active_id"]
+    for i in range(5):
+        decide(client, url, timeline, i, 0)
+    response = client.put(f"{url}/reflection", json={"priorities": ["Independence"], "dilemma": "overwritten"})
+    assert response.status_code == 200
+    saved = client.get(url).json()
+    for key, value in context.items():
+        assert saved["passport"][key] == saved["profile"][key] == value
