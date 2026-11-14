@@ -466,3 +466,25 @@ def test_personal_story_is_owned_persistent_and_retryable(game_api, monkeypatch)
     stranger = {"X-Guest-Token": str(uuid4())}
     assert client.get("/api/personal", headers=stranger).json() == []
     assert client.put(url + "/pick/first/b", headers=stranger).status_code == 404
+
+    conversations = []
+    async def reply(kind, context, blocked, locale):
+        conversations.append(context)
+        return {"reply": context["ending"]}, None
+
+    monkeypatch.setattr(personal, "generate", reply)
+    prompt = {"request_id": str(uuid4()), "question": "Why?", "locale": "en"}
+    first = url + "/chat/first/a"
+    second = url + "/chat/second/b"
+    assert client.post(first, json=prompt, headers=stranger).status_code == 404
+    assert client.post(url + "/chat/first/b", json=prompt).status_code == 409
+    assert client.post(first, json=prompt).json()[0]["reply"] == "first_a_end"
+    assert len(client.post(first, json=prompt).json()) == 1
+    assert client.get(second).json() == []
+    assert client.post(second, json={**prompt, "request_id": str(uuid4())}).json()[0]["reply"] == "second_b_end"
+    assert [ctx["path"] for ctx in conversations] == [body["first"], body["second"]]
+    assert all(not ctx["history"] for ctx in conversations)
+    assert client.put(url + "/pick/first/b").status_code == 200
+    assert client.get(url + "/chat/first/b").json() == []
+    assert client.put(url + "/pick/first/a").status_code == 200
+    assert len(client.get(first).json()) == 1

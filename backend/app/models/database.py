@@ -1,7 +1,7 @@
 import hashlib
 import os
 
-from sqlalchemy import JSON, String, create_engine
+from sqlalchemy import BigInteger, JSON, String, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
@@ -71,3 +71,14 @@ class PersonalStoryRecord(Base):
     brief: Mapped[dict] = mapped_column(JSON)
     story: Mapped[dict] = mapped_column(JSON)
     picks: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class PersonalConversationTurn(Base):
+    __tablename__ = "personal_conversation_turns"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    story_id: Mapped[str] = mapped_column(String(36), index=True)
+    branch: Mapped[str] = mapped_column(String(8))
+    choice: Mapped[str] = mapped_column(String(1))
+    created: Mapped[int] = mapped_column(BigInteger)
+    data: Mapped[dict] = mapped_column(JSON)

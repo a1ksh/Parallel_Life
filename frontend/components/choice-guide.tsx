@@ -32,7 +32,7 @@ export function ChoiceEffects({ effects, scenario }: { effects?: Record<string, 
     const metric = person ? t("Trust · {name}", { name: person.name }) : t(names[id as keyof typeof names] ?? "Character trust");
     const direction = delta > 0 ? t("{metric} increases", { metric }) : t("{metric} decreases", { metric });
     return <span key={id} className={delta > 0 ? "effect-up" : "effect-down"} title={direction}>
-      <span aria-hidden="true">{delta > 0 ? "↑" : "↓"} {metric}</span><span className="sr-only">{direction}</span>
+      <span aria-hidden="true">{metric} {delta > 0 ? "+" : ""}{delta}</span><span className="sr-only">{direction} ({delta})</span>
     </span>;
   })}</span>;
 }

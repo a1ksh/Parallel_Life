@@ -280,14 +280,21 @@ function Story({ game, scenario, start, replay, choose, send, open, narrate }: {
 }) {
   const { t } = useTranslation();
   const { busy, ai } = useGame();
+  const [pending, setPending] = useState<string>();
   const branch = game.branches.find((item) => item.id === game.active_id);
   const scene = branch?.scene;
   const ending = game.endings.find((item) => item.id === branch?.id);
+  const targets = game.profile.selected_values?.length ? game.profile.selected_values : [({career: "career", education: "knowledge", relationships: "social"} as const)[scenario.id]];
+  const scoreGoal = t("Keep {metrics} at 50 points or higher by the ending.", {metrics: targets.map(k => t(metrics[k])).join(", ")});
   const previousChoice = branch?.parent_id && scene ? game.branches.find(item => item.id === branch.parent_id)?.events[scene.index] : undefined;
   if (ending) return <section className="story-page">
     <StartHeader eyebrow={t("Year 3 · Timeline complete")} title={t("One possible life")} />
     <ChoiceResult event={ending.events.at(-1)} scenario={scenario} />
     <Outcome ending={{ ...ending, aftermath: null }} />
+    {branch && <section className="panel form-grid"><h2>{t("Final score")}</h2><p>{scoreGoal}</p>
+      <strong>{t(targets.every(k => branch.world[k] >= 50) ? "Game goal reached" : "Game goal missed")}</strong>
+      <div className="metric-grid">{valueIds.map(k => <div key={k}><strong>{t(metrics[k])}</strong><p>{branch.world[k]} / 100</p></div>)}</div>
+    </section>}
     {game.endings.length === 1 && ending.events[0] && <section className="panel form-grid">
       <h2>{t("What if your first decision had been different?")}</h2>
       <p>{t("Your first choice was “{choice}”. Keep this ending and try another answer. Then compare what each life cost you and ask your other self why.", { choice: ending.events[0].choice })}</p>
@@ -300,6 +307,7 @@ function Story({ game, scenario, start, replay, choose, send, open, narrate }: {
   if (!branch || !scene) return <section className="story-page decision-start">
     <StartHeader eyebrow={scenario.title} title={t(decisionQuestions[scenario.id])}><p>{scenario.intro}</p></StartHeader>
     <div className="decision-heading"><h2>{t("Choose your first path")}</h2><p>{t("You can return to this decision and play another path.")}</p></div>
+    <p>{t("Game goal")} · {scoreGoal}</p>
     <PathButtons scenario={scenario} start={start} />
     <PersonalContext profile={game.profile} />
     <CountryContext category={scenario.id} />
@@ -318,13 +326,16 @@ function Story({ game, scenario, start, replay, choose, send, open, narrate }: {
       {scene.side_event && <details className="world"><summary>{t("A moment on the side")}</summary><p>{scene.side_event}</p></details>}
       {ai && !scene.personalized && <Button variant="ghost" disabled={busy} onClick={narrate}><Sparkles size={15} /> {t(scene.has_personalization ? "Translate AI scene" : "Personalize scene")}</Button>}
       <div className="decision-heading"><h2>{t("What will you do?")}</h2>
-        {scene.choices.some(option => option.effects) && <p>{t("Arrows show what each choice changes in this story.")}</p>}</div>
+        {scene.choices.some(option => option.effects) && <p>{t("Preview the points, then confirm your decision.")}</p>}</div>
       <div className="choice-list decision-options">{scene.choices.map((option) => <Button key={option.id} className="choice" variant="outline"
-        disabled={busy} onClick={() => choose(option.id, scene.index)}><span><strong>{option.label}</strong>
+        disabled={busy} aria-pressed={pending === option.id} onClick={() => setPending(option.id)}><span><strong>{option.label}</strong>
           {previousChoice && (previousChoice.choice_id === option.id || previousChoice.choice === option.label) && <small>{t("Your choice in the original timeline")}</small>}
           {option.effects ? <ChoiceEffects effects={option.effects} scenario={scenario} /> :
             <small>{option.focus.map(key => t(metrics[key as keyof typeof metrics] ?? "Character trust")).filter((item, i, all) => all.indexOf(item) === i).join(" · ")}</small>}
         </span><ArrowRight size={17} /></Button>)}</div>
+      {pending !== undefined && <div className="panel form-grid"><p>{t("Your choice")} · <strong>{scene.choices.find(option => option.id === pending)?.label}</strong></p>
+        <Button disabled={busy} onClick={() => choose(pending, scene.index)}>{t("Confirm and see the consequence")}</Button></div>}
+      <p>{t("Game goal")} · {scoreGoal}</p>
       <WorldState branch={branch} />
       <p className="small-label">{path?.title}</p>
     </div>
