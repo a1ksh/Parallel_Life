@@ -141,8 +141,11 @@ function Onboarding({ category, onSave }: { category: Category; onSave: (profile
       values: selected.map(id => metrics[id]).join(", "), background: field("background") });
   }
   return <section className="narrow">
-    <StartHeader eyebrow={t("Your avatar")} title={t("Who will you play?")}><p>{t("Use a fictional profile or a name and details you’re comfortable sharing.")}</p></StartHeader>
-    <form className="panel form-grid" onSubmit={submit} noValidate onInput={() => setInvalid(null)}>
+    <StartHeader eyebrow={t("Your avatar")} title={t("Who will you play?")}><p>{t("Start with a ready-made character, or fill in the profile below.")}</p>
+      <Button className="quick-start" variant="outline" form="avatar-profile" disabled={busy}
+        onClick={event => quickStart(event.currentTarget.form)}>{t("Quick Start")} <ArrowRight size={16} /></Button>
+    </StartHeader>
+    <form id="avatar-profile" className="panel form-grid" onSubmit={submit} noValidate onInput={() => setInvalid(null)}>
       {invalid && <p className="error" role="alert">{invalid === "age" ? t("Enter an age between 18 and 120.") : invalid === "values" ? t("Choose two or three values.") : t("Fill out this field.")}</p>}
       <fieldset><legend>{t("Avatar")}</legend><div className="avatar-row">{avatars.map((item) =>
         <button key={item} type="button" className={`avatar ${item}`} aria-pressed={item === avatar}
@@ -174,7 +177,7 @@ function Onboarding({ category, onSave }: { category: Category; onSave: (profile
         </div>
       </details>
       <div className="actions"><Button type="submit" disabled={busy}>{t("Save avatar")} <ArrowRight size={16} /></Button>
-        <Button variant="outline" disabled={busy} onClick={e => quickStart(e.currentTarget.form)}>{t("Quick Start")}</Button></div>
+      </div>
     </form>
   </section>;
 }

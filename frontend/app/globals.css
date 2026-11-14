@@ -232,3 +232,5 @@ meter, progress { width: 100%; accent-color: var(--primary); }
 .priority-tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1rem 0; }
 .priority-tabs button { border: 1px solid var(--line); border-radius: 6px; color: inherit; background: transparent; padding: .45rem .65rem; font: inherit; font-size: .85rem; }
 .priority-tabs button[aria-pressed=true] { border-color: var(--primary); color: var(--primary); background: #262136; }
+
+.page-heading .quick-start { margin-top: 14px; }
